@@ -29,7 +29,7 @@ function headline(service: ServiceDetail): { big: string; small: string } {
     case 'ARRIVED':
       return { big: 'En la puerta', small: `${service.vendor.name} ya llegó a tu ubicación.` };
     case 'COMPLETED':
-      return { big: 'Listo', small: 'Servicio completado. ¡Gracias por usar Barbería!' };
+      return { big: 'Listo', small: 'Servicio completado. ¡Gracias por usar ALaManoApp!' };
     case 'CANCELLED':
       return { big: 'Cancelado', small: 'Este servicio se canceló.' };
   }
