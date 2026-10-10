@@ -13,3 +13,6 @@ coverage
 .idea
 .DS_Store
 *.log
+
+# Configuración local del editor
+.claude/settings.local.json

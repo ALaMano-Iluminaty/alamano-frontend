@@ -28,6 +28,7 @@ export function ClientMapScreen() {
   const closeSheet = useCallback(() => setSelectedId(null), []);
 
   const { reserve, claim, reservingId, claimingId } = useVendorActions({
+    position,
     onVendorTaken: (vendorId) => {
       removeVendor(vendorId);
       setSelectedId(null);

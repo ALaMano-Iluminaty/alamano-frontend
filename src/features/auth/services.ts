@@ -20,18 +20,78 @@ interface AuthResponse {
   user: SessionUser;
 }
 
+interface AuthUserDto {
+  id: number;
+  nombre: string;
+  correo: string;
+  rol: string;
+  creadoEn: string;
+}
+
+interface LoginResponseDto {
+  token: string;
+  usuario: AuthUserDto;
+}
+
+const AUTH_ROLES: Record<UserRole, string> = {
+  CUSTOMER: 'USUARIO',
+  SELLER: 'VENDEDOR',
+};
+
+const AUTH_BASE_URL = import.meta.env.VITE_AUTH_URL ?? '/auth';
+
+function fromAuthService({ token, usuario }: LoginResponseDto): Session {
+  return {
+    token,
+    user: {
+      id: String(usuario.id),
+      name: usuario.nombre,
+      email: usuario.correo,
+      role: normalizeRole(usuario.rol),
+    },
+  };
+}
+
+const BACKEND_ROLES: Record<string, UserRole> = {
+  USUARIO: 'CUSTOMER',
+  VENDEDOR: 'SELLER',
+  CLIENT: 'CUSTOMER',
+  PROFESSIONAL: 'SELLER',
+};
+
+function normalizeRole(role: string): UserRole {
+  return BACKEND_ROLES[role] ?? (role as UserRole);
+}
+
 function toSession(response: AuthResponse): Session {
-  return { token: response.accessToken, refreshToken: response.refreshToken, user: response.user };
+  const user = { ...response.user, role: normalizeRole(response.user.role) };
+  return { token: response.accessToken, refreshToken: response.refreshToken, user };
 }
 
 export async function login(payload: LoginPayload): Promise<Session> {
   if (USE_MOCKS) return mockLogin(payload);
-  return toSession(await apiClient.post<AuthResponse>('/auth/login', payload, { auth: false }));
+  const response = await apiClient.post<LoginResponseDto>(
+    '/login',
+    { correo: payload.email, password: payload.password },
+    { auth: false, baseUrl: AUTH_BASE_URL },
+  );
+  return fromAuthService(response);
 }
 
 export async function register(payload: RegisterPayload): Promise<Session> {
   if (USE_MOCKS) return mockRegister(payload);
-  return toSession(await apiClient.post<AuthResponse>('/auth/register', payload, { auth: false }));
+  // El registro responde 201 con el usuario y sin token: se inicia sesión a continuación.
+  await apiClient.post<AuthUserDto>(
+    '/register',
+    {
+      nombre: payload.name.trim(),
+      correo: payload.email,
+      password: payload.password,
+      rol: AUTH_ROLES[payload.role],
+    },
+    { auth: false, baseUrl: AUTH_BASE_URL },
+  );
+  return login({ email: payload.email, password: payload.password });
 }
 
 /** Traduce los errores del gateway a algo que el usuario pueda resolver. */

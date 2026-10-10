@@ -12,5 +12,13 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: false,
+    // El navegador solo habla con :5173 (sin CORS), igual que con nginx en producción.
+    // El orden importa: la regla más específica va primero.
+    proxy: {
+      // Auth: ajustar el puerto al que use alamano-auth-service.
+      '/auth': { target: process.env.AUTH_URL ?? 'http://localhost:8081', changeOrigin: true },
+      '/api': { target: process.env.CORE_URL ?? 'http://localhost:8082', changeOrigin: true },
+      '/ws': { target: process.env.GATEWAY_URL ?? 'http://localhost:8083', ws: true },
+    },
   },
 });

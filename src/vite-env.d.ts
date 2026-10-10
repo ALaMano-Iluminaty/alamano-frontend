@@ -5,6 +5,7 @@ interface ImportMetaEnv {
   readonly VITE_WS_GATEWAY_URL: string;
   /** 'true' activa los mocks de `lib/mock`. */
   readonly VITE_USE_MOCKS?: string;
+  readonly VITE_AUTH_URL?: string;
 }
 
 interface ImportMeta {

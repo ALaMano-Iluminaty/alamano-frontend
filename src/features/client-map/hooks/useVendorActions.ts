@@ -1,10 +1,13 @@
 import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useToast } from '@/context';
+import { useSession, useToast } from '@/context';
 import { ApiError } from '@/lib/api-client';
+import type { GeoPoint } from '@/lib/geo';
 import { claimPromo, reserveVendor, type Promo, type Vendor } from '../services';
 
 interface VendorActionsOptions {
+  /** Ubicación del cliente: es el destino del servicio. */
+  position: GeoPoint;
   /** 409 en la reserva: el barbero ya no está disponible. */
   onVendorTaken: (vendorId: string) => void;
   /** Stock real devuelto por el gateway (o 0 tras un 409). */
@@ -22,17 +25,22 @@ function describe(error: unknown, fallback: string): string {
  * envío). Un 409 no es un fallo: otro cliente llegó antes. Se avisa con un
  * toast y la disponibilidad se corrige al momento.
  */
-export function useVendorActions({ onVendorTaken, onPromoStock }: VendorActionsOptions) {
+export function useVendorActions({ position, onVendorTaken, onPromoStock }: VendorActionsOptions) {
   const navigate = useNavigate();
   const { show } = useToast();
+  const { session } = useSession();
   const [reservingId, setReservingId] = useState<string | null>(null);
   const [claimingId, setClaimingId] = useState<string | null>(null);
 
   const reserve = useCallback(
     async (vendor: Vendor) => {
+      if (!session) return;
       setReservingId(vendor.vendorId);
       try {
-        const { serviceId } = await reserveVendor(vendor.vendorId);
+        const { serviceId } = await reserveVendor(vendor.vendorId, {
+          clientId: session.user.id,
+          destination: position,
+        });
         show({ tone: 'success', title: `${vendor.name} está reservado para ti`, body: 'Síguelo en el mapa.' });
         navigate(`/tracking/${serviceId}`);
       } catch (caught) {
@@ -50,7 +58,7 @@ export function useVendorActions({ onVendorTaken, onPromoStock }: VendorActionsO
         setReservingId(null);
       }
     },
-    [navigate, show, onVendorTaken],
+    [navigate, show, onVendorTaken, session, position],
   );
 
   const claim = useCallback(

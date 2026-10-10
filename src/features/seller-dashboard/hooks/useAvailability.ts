@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useBeforeSignOut } from '@/context';
+import { useBeforeSignOut, useToast } from '@/context';
+import { ApiError } from '@/lib/api-client';
 import { useWatchPosition, type GeoPoint } from '@/lib/geo';
 import { USE_MOCKS } from '@/lib/mock';
 import { ClientEvent, realtimeSocket } from '@/lib/realtime';
 import { startOnlineSimulation } from '../mocks';
+import { PROFESSIONAL_BUSY, goOfflineAtCore, goOnlineAtCore } from '../services';
 
 /**
  * El GPS puede disparar varias lecturas por segundo; con una cada 2 s el
@@ -30,7 +32,12 @@ function announceOffline(): void {
  * vez de esperar a que el servidor note el silencio.
  */
 export function useAvailability() {
+  const { show } = useToast();
   const [online, setOnline] = useState(false);
+  /** Ya se pidió al Core ponerse en línea en esta sesión (la petición puede seguir en vuelo). */
+  const announcedRef = useRef(false);
+  /** El Core confirmó que está en línea: solo entonces hay algo que desconectar. */
+  const confirmedRef = useRef(false);
   const [lastSentAt, setLastSentAt] = useState<string | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const lastEmit = useRef(0);
@@ -67,18 +74,75 @@ export function useAvailability() {
     return () => clearInterval(timer);
   }, [online, emitPosition]);
 
+  /**
+   * HU5 — sin este aviso el barbero seguiría en el mapa de los clientes hasta
+   * que el Gateway note que se cortó el socket. Si falla, se le dice: puede
+   * seguir visible unos segundos.
+   */
+  const notifyCoreOffline = useCallback(() => {
+    goOfflineAtCore().catch((error: unknown) => {
+      const busy = error instanceof ApiError && error.status === 409 && error.code === PROFESSIONAL_BUSY;
+      show({
+        tone: 'conflict',
+        title: 'No pudimos sacarte del mapa',
+        body: busy
+          ? 'Tienes un servicio en curso: termínalo para desconectarte.'
+          : 'Revisa tu conexión: los clientes podrían seguir viéndote unos segundos.',
+      });
+    });
+  }, [show]);
+
   const goOnline = useCallback(() => {
     setGpsError(null);
     lastEmit.current = 0;
+    announcedRef.current = false;
+    confirmedRef.current = false;
     setOnline(true);
   }, []);
 
   const goOffline = useCallback(() => {
     if (!onlineRef.current) return;
+    if (confirmedRef.current) {
+      confirmedRef.current = false;
+      notifyCoreOffline();
+    }
     announceOffline();
     setOnline(false);
     setLastSentAt(null);
-  }, []);
+  }, [notifyCoreOffline]);
+
+  // El Core necesita la posición para anunciarlo: se avisa con la primera lectura del GPS.
+  useEffect(() => {
+    if (!online || USE_MOCKS || announcedRef.current) return;
+    if (gpsStatus !== 'active' || !position) return;
+    announcedRef.current = true;
+
+    goOnlineAtCore(position)
+      .then(() => {
+        if (onlineRef.current) {
+          confirmedRef.current = true;
+          return;
+        }
+        // Lo apagaron mientras la petición viajaba: el Core ya lo tiene en línea y hay que corregirlo.
+        notifyCoreOffline();
+      })
+      .catch((error: unknown) => {
+        goOffline();
+        if (error instanceof ApiError && error.status === 409 && error.code === PROFESSIONAL_BUSY) {
+          show({
+            tone: 'conflict',
+            title: 'Tienes un servicio en curso',
+            body: 'Termínalo antes de volver a ponerte en línea.',
+          });
+          return;
+        }
+        show({
+          tone: 'conflict',
+          title: 'No pudimos ponerte en línea',
+          body: error instanceof Error ? error.message : 'Prueba de nuevo en unos segundos.',
+        });
+      });
+  }, [online, gpsStatus, position, goOffline, notifyCoreOffline, show]);
 
   // Sin GPS no hay forma de aparecer en el mapa: se vuelve a desconectado y se explica.
   useEffect(() => {
@@ -93,9 +157,15 @@ export function useAvailability() {
     }
   }, [online, gpsStatus, goOffline]);
 
-  // Cerrar sesión, salir de la pantalla o cerrar la pestaña también desconectan.
+  // Cerrar sesión desconecta en el Core al momento (el token aún es válido en este punto).
+  // Cerrar la pestaña no pasa por aquí: lo detecta el Gateway cuando se corta el socket.
   useBeforeSignOut(() => {
-    if (onlineRef.current) announceOffline();
+    if (!onlineRef.current) return;
+    if (confirmedRef.current) {
+      confirmedRef.current = false;
+      notifyCoreOffline();
+    }
+    announceOffline();
   });
 
   useEffect(() => {

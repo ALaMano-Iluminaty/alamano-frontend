@@ -1,38 +1,46 @@
+import { Client, ReconnectionTimeMode, type IMessage } from '@stomp/stompjs';
 import { USE_MOCKS } from '@/lib/mock';
-import {
-  isRealtimeEnvelope,
-  type RealtimeEnvelope,
-  type RealtimeEventName,
-  type RealtimeEventPayloads,
-} from './events';
+import type { RealtimeEventName, RealtimeEventPayloads } from './events';
+import { isGatewayEnvelope, translateGatewayEvent } from './gatewayAdapter';
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'open' | 'reconnecting' | 'closed';
 
 type Listener<E extends RealtimeEventName> = (payload: RealtimeEventPayloads[E]) => void;
 type StatusListener = (status: ConnectionStatus) => void;
 
-const WS_URL = import.meta.env.VITE_WS_GATEWAY_URL ?? 'ws://localhost:8080/ws';
+const WS_URL = import.meta.env.VITE_WS_GATEWAY_URL ?? '/ws';
 
-/** 6.4 — backoff exponencial con jitter para no martillar al gateway. */
+/** Eventos del mapa: professional.online y professional.disconnected. */
+const MAP_TOPIC = '/topic/map';
+/** Errores dirigidos a este usuario. */
+const ERRORS_QUEUE = '/user/queue/errors';
+
+/** Los mismos que anuncia el Gateway. */
+const HEARTBEAT_MS = 10_000;
+
+/** 6.4 — backoff exponencial para no martillar al Gateway. */
 const BASE_DELAY_MS = 1_000;
 const MAX_DELAY_MS = 30_000;
-const HEARTBEAT_INTERVAL_MS = 25_000;
+
+/** STOMP necesita una URL absoluta: `/ws` se completa con el host actual. */
+function brokerUrl(): string {
+  if (!WS_URL.startsWith('/')) return WS_URL;
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}${WS_URL}`;
+}
 
 /**
- * Única instancia de WebSocket de la app.
+ * Única conexión en tiempo real de la app.
  *
- * Toda la app habla con el broker a través de aquí: nadie más crea un
- * `new WebSocket`. Si el backend pasa a Socket.IO, este archivo es lo único
- * que cambia — `useRealtime` y las features no se enteran.
+ * Por dentro habla STOMP con el Realtime Gateway y traduce sus eventos al
+ * contrato interno (ver gatewayAdapter.ts). Hacia fuera la API no cambia:
+ * `useRealtime` y las features no saben que hay STOMP debajo.
  */
 class RealtimeSocket {
-  private socket: WebSocket | null = null;
+  private client: Client | null = null;
   private token: string | null = null;
   private status: ConnectionStatus = 'idle';
-  private attempt = 0;
-  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-  /** Cierre pedido por nosotros: no reconectar. */
+  /** Cierre pedido por nosotros o token rechazado: no reconectar. */
   private intentionallyClosed = false;
 
   private readonly listeners = new Map<string, Set<Listener<RealtimeEventName>>>();
@@ -49,19 +57,18 @@ class RealtimeSocket {
       return;
     }
 
-    const readyState = this.socket?.readyState;
-    if (readyState === WebSocket.OPEN || readyState === WebSocket.CONNECTING) return;
+    if (this.client?.active) return;
 
-    this.setStatus(this.attempt === 0 ? 'connecting' : 'reconnecting');
-    this.open();
+    this.setStatus('connecting');
+    this.client = this.createClient();
+    this.client.activate();
   }
 
   disconnect(): void {
     this.intentionallyClosed = true;
-    this.clearTimers();
-    this.attempt = 0;
-    this.socket?.close(1000, 'client disconnect');
-    this.socket = null;
+    const client = this.client;
+    this.client = null;
+    void client?.deactivate();
     this.setStatus('closed');
   }
 
@@ -88,67 +95,72 @@ class RealtimeSocket {
     return this.status;
   }
 
-  /** Envía un mensaje al gateway (ej. unirse a la sala de un booking). */
-  emit(event: string, data: unknown): void {
+  /** Envía un mensaje al gateway. El Gateway aún no recibe mensajes del cliente. */
+  emit(event: string, _data: unknown): void {
     if (USE_MOCKS) return;
-    if (this.socket?.readyState !== WebSocket.OPEN) {
-      console.warn('[realtime] socket cerrado, se descarta el envío de:', event);
-      return;
-    }
-    this.socket.send(JSON.stringify({ event, data }));
+    // eslint-disable-next-line no-console
+    console.info('[realtime] el envío por WebSocket aún no está soportado, se descarta:', event);
   }
 
-  private open(): void {
-    // El token va en la query: el navegador no permite cabeceras en WebSocket.
-    const url = new URL(WS_URL);
-    if (this.token) url.searchParams.set('token', this.token);
+  private createClient(): Client {
+    const client = new Client({
+      brokerURL: brokerUrl(),
+      connectHeaders: this.token ? { Authorization: `Bearer ${this.token}` } : {},
+      heartbeatIncoming: HEARTBEAT_MS,
+      heartbeatOutgoing: HEARTBEAT_MS,
+      reconnectTimeMode: ReconnectionTimeMode.EXPONENTIAL,
+      reconnectDelay: BASE_DELAY_MS,
+      maxReconnectDelay: MAX_DELAY_MS,
+    });
 
-    const socket = new WebSocket(url.toString());
-    this.socket = socket;
-
-    socket.onopen = () => {
-      this.attempt = 0;
+    client.onConnect = () => {
       this.setStatus('open');
-      this.startHeartbeat();
+      // stompjs no rehace las suscripciones al reconectar: van en cada onConnect.
+      client.subscribe(MAP_TOPIC, (message) => this.handleMessage(message));
+      client.subscribe(ERRORS_QUEUE, (message) => {
+        console.warn('[realtime] error del Gateway:', message.body);
+      });
     };
 
-    socket.onmessage = (raw) => this.handleMessage(raw.data);
+    client.onStompError = (frame) => {
+      // Frame ERROR (ej. token rechazado): reintentar con el mismo token no sirve.
+      console.warn('[realtime] el Gateway rechazó la conexión:', frame.headers.message ?? frame.body);
+      this.intentionallyClosed = true;
+      if (this.client === client) this.client = null;
+      void client.deactivate();
+      this.setStatus('closed');
+    };
 
-    socket.onerror = () => {
-      // onclose llega siempre después: la reconexión se gestiona allí.
+    client.onWebSocketClose = () => {
+      // Un cliente viejo (ya reemplazado o desactivado) no toca el estado.
+      if (this.client !== client) return;
+      this.setStatus(this.intentionallyClosed ? 'closed' : 'reconnecting');
+    };
+
+    client.onWebSocketError = () => {
+      // onWebSocketClose llega siempre después: la reconexión la gestiona stompjs.
       console.warn('[realtime] error de socket');
     };
 
-    socket.onclose = () => {
-      this.stopHeartbeat();
-      this.socket = null;
-      if (this.intentionallyClosed) {
-        this.setStatus('closed');
-        return;
-      }
-      this.scheduleReconnect();
-    };
+    return client;
   }
 
-  private handleMessage(raw: unknown): void {
-    if (typeof raw !== 'string') return;
-    if (raw === 'pong') return;
-
+  private handleMessage(message: IMessage): void {
     let parsed: unknown;
     try {
-      parsed = JSON.parse(raw);
+      parsed = JSON.parse(message.body);
     } catch {
       console.warn('[realtime] mensaje no-JSON descartado');
       return;
     }
 
-    if (!isRealtimeEnvelope(parsed)) {
-      console.warn('[realtime] mensaje sin forma de evento descartado');
+    if (!isGatewayEnvelope(parsed)) {
+      console.warn('[realtime] mensaje sin forma de evento del Gateway descartado');
       return;
     }
 
-    const envelope = parsed as RealtimeEnvelope;
-    this.dispatch(envelope.event, envelope.data);
+    const translated = translateGatewayEvent(parsed);
+    if (translated) this.dispatch(translated.event, translated.data);
   }
 
   /**
@@ -167,37 +179,6 @@ class RealtimeSocket {
         console.error('[realtime] listener falló para:', event, error);
       }
     }
-  }
-
-  private scheduleReconnect(): void {
-    this.setStatus('reconnecting');
-    const exponential = Math.min(BASE_DELAY_MS * 2 ** this.attempt, MAX_DELAY_MS);
-    // Jitter: la mitad fija, la mitad aleatoria.
-    const delay = exponential / 2 + Math.random() * (exponential / 2);
-    this.attempt += 1;
-
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null;
-      if (!this.intentionallyClosed) this.open();
-    }, delay);
-  }
-
-  private startHeartbeat(): void {
-    this.stopHeartbeat();
-    this.heartbeatTimer = setInterval(() => {
-      if (this.socket?.readyState === WebSocket.OPEN) this.socket.send('ping');
-    }, HEARTBEAT_INTERVAL_MS);
-  }
-
-  private stopHeartbeat(): void {
-    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
-    this.heartbeatTimer = null;
-  }
-
-  private clearTimers(): void {
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    this.reconnectTimer = null;
-    this.stopHeartbeat();
   }
 
   private setStatus(status: ConnectionStatus): void {
