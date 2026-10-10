@@ -55,6 +55,16 @@ export async function goOnlineAtCore(position: GeoPoint): Promise<void> {
     latitude: position.lat,
     longitude: position.lng,
   });
+  
+}
+
+/**
+ * HU5 — Sale del mapa. Sin cuerpo: el id sale del token. Un 409
+ * `professional_busy` significa que tiene un servicio en curso.
+ */
+export async function goOfflineAtCore(): Promise<void> {
+  if (USE_MOCKS) return;
+  await apiClient.post<ProfessionalStatusDto>('/professionals/me/offline');
 }
 
 // El Core guarda un solo texto por promoción: el título va en la primera línea
