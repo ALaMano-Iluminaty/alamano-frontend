@@ -4,10 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
   build:
+    name: Lint, tipos y build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,8 +27,38 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      # Sin variables VITE_*: el código usa /api, /auth y /ws (rutas relativas),
+      # que son las que sirve nginx en la VM.
       - name: Build
         run: npm run build
+
+  image:
+    name: Publicar imagen
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # GHCR solo acepta nombres en minuscula y la organizacion tiene mayusculas.
+      - name: Nombre de la imagen en minuscula
+        run: echo "IMAGE=ghcr.io/${REPO,,}" >> $GITHUB_ENV
         env:
-          VITE_API_GATEWAY_URL: http://localhost:8080/api
-          VITE_WS_GATEWAY_URL: ws://localhost:8080/ws
+          REPO: ${{ github.repository }}
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
