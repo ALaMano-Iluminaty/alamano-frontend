@@ -43,13 +43,13 @@ function renewToken(): Promise<string | null> {
 }
 
 /** `new URL` no acepta una base relativa como `/api`: se completa con el origen actual. */
-function absoluteBase(): string {
-  const base = BASE_URL.startsWith('/') ? `${window.location.origin}${BASE_URL}` : BASE_URL;
+function absoluteBase(baseUrl: string): string {
+  const base = baseUrl.startsWith('/') ? `${window.location.origin}${baseUrl}` : baseUrl;
   return `${base.replace(/\/$/, '')}/`;
 }
 
-function buildUrl(path: string, query?: RequestOptions['query']): string {
-  const url = new URL(path.replace(/^\//, ''), absoluteBase());
+function buildUrl(path: string, query?: RequestOptions['query'], baseUrl: string = BASE_URL): string {
+  const url = new URL(path.replace(/^\//, ''), absoluteBase(baseUrl));
   if (query) {
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
@@ -67,7 +67,7 @@ async function parseError(response: Response): Promise<ApiError> {
   }
   return new ApiError(
     response.status,
-    body.message ?? `Error ${response.status} en ${response.url}`,
+    body.message ?? body.error ?? `Error ${response.status} en ${response.url}`,
     body.code ?? body.error,
     body.details,
   );
@@ -80,7 +80,7 @@ async function request<T>(
   /** Token recién renovado: se usa en el reintento tras un 401. */
   retryToken?: string,
 ): Promise<T> {
-  const { body, query, timeoutMs = DEFAULT_TIMEOUT_MS, headers, signal, auth = true, ...rest } = options;
+  const { body, query, timeoutMs = DEFAULT_TIMEOUT_MS, headers, signal, auth = true, baseUrl, ...rest } = options;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -89,7 +89,7 @@ async function request<T>(
   const token = auth ? (retryToken ?? getToken()) : null;
 
   try {
-    const response = await fetch(buildUrl(path, query), {
+    const response = await fetch(buildUrl(path, query, baseUrl), {
       ...rest,
       method,
       signal: controller.signal,
