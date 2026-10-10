@@ -39,4 +39,9 @@ export interface RequestOptions extends Omit<RequestInit, 'body' | 'method'> {
    * 401 no dispara la renovación ni el cierre de sesión.
    */
   auth?: boolean;
+    /**
+   * Base distinta de `VITE_API_GATEWAY_URL`. Auth vive en `/auth`, no bajo
+   * `/api`: nginx manda `/api/*` al Core, así que `/api/auth/*` daría 404.
+   */
+  baseUrl?: string;
 }

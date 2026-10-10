@@ -16,7 +16,7 @@ export default defineConfig({
     // El orden importa: la regla más específica va primero.
     proxy: {
       // Auth: ajustar el puerto al que use alamano-auth-service.
-      '/api/auth': { target: process.env.AUTH_URL ?? 'http://localhost:8081', changeOrigin: true },
+      '/auth': { target: process.env.AUTH_URL ?? 'http://localhost:8081', changeOrigin: true },
       '/api': { target: process.env.CORE_URL ?? 'http://localhost:8082', changeOrigin: true },
       '/ws': { target: process.env.GATEWAY_URL ?? 'http://localhost:8083', ws: true },
     },
