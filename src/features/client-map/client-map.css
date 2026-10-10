@@ -1,0 +1,213 @@
+.client-map {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.client-map__canvas {
+  position: absolute;
+  inset: 0;
+}
+
+/* Capa superior: flota sobre el mapa sin bloquear el arrastre. */
+.client-map__top {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  right: 0.75rem;
+  z-index: 700;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+.client-map__top > * {
+  pointer-events: auto;
+  box-shadow: var(--shadow-float);
+}
+
+.radar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 1rem 0.45rem 0.8rem;
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.radar__count {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 2.4rem;
+  line-height: 1;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.radar__label {
+  display: flex;
+  flex-direction: column;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.radar__label small {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.client-map__notice {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 420px;
+  padding: 0.55rem 0.6rem 0.55rem 0.9rem;
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 0.88rem;
+}
+.client-map__notice--error {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.recenter {
+  position: absolute;
+  right: 1rem;
+  bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  z-index: 700;
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: var(--shadow-float);
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.recenter:hover {
+  transform: scale(1.05);
+}
+/* En móvil el sheet tapa la parte baja: el botón se esconde mientras está abierto. */
+.recenter--behind-sheet {
+  display: none;
+}
+
+.vendor-sheet__specialty {
+  margin: -0.6rem 0 1rem;
+  color: var(--text-muted);
+}
+.vendor-sheet__reserve {
+  width: 100%;
+  min-height: 54px;
+  font-size: 1.05rem;
+}
+.vendor-sheet__hint {
+  margin: 0.45rem 0 0;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.vendor-sheet__section {
+  margin: 1.5rem 0 0.6rem;
+  font-size: 1.35rem;
+}
+.vendor-sheet__promos {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.vendor-sheet__empty {
+  margin: 1.25rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+/* Ticket de turno: cuerpo + talón separado por una línea perforada. */
+.ticket {
+  --notch: 9px;
+  display: grid;
+  grid-template-columns: 1fr 92px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  /* Muescas redondas arriba y abajo en la línea de corte. */
+  -webkit-mask:
+    radial-gradient(circle var(--notch) at calc(100% - 92px) 0, transparent 98%, #000) top / 100% 51% no-repeat,
+    radial-gradient(circle var(--notch) at calc(100% - 92px) 100%, transparent 98%, #000) bottom / 100% 51% no-repeat;
+  mask:
+    radial-gradient(circle var(--notch) at calc(100% - 92px) 0, transparent 98%, #000) top / 100% 51% no-repeat,
+    radial-gradient(circle var(--notch) at calc(100% - 92px) 100%, transparent 98%, #000) bottom / 100% 51% no-repeat;
+}
+.ticket__body {
+  padding: 0.85rem 0.9rem;
+}
+.ticket__title {
+  font-size: 1.3rem;
+}
+.ticket__text {
+  margin: 0.25rem 0 0.7rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.ticket__action {
+  min-height: 40px;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.9rem;
+}
+.ticket__stub {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  border-left: 2px dashed var(--accent);
+  text-align: center;
+}
+.ticket__count {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 3rem;
+  line-height: 0.9;
+  color: var(--accent-strong);
+  font-variant-numeric: tabular-nums;
+  animation: count-bump 0.35s ease-out;
+}
+.ticket__count--low {
+  color: var(--danger);
+}
+.ticket__of {
+  margin-top: 0.2rem;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+.ticket--sold-out {
+  background: var(--surface-alt);
+}
+.ticket--sold-out .ticket__stub {
+  border-left-color: var(--border);
+}
+.ticket--sold-out .ticket__count {
+  color: var(--text-muted);
+}
+@keyframes count-bump {
+  from {
+    transform: scale(1.35);
+  }
+}
+
+@media (min-width: 900px) {
+  /* En escritorio el sheet flota a la izquierda, bajo el contador. */
+  .client-map .sheet {
+    top: 5.25rem;
+    max-height: calc(100% - 6.25rem);
+  }
+  .recenter--behind-sheet {
+    display: grid;
+  }
+}

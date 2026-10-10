@@ -1,0 +1,193 @@
+.tracking {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.tracking__map {
+  position: absolute;
+  inset: 0;
+}
+.tracking__loading,
+.tracking__failed {
+  max-width: 480px;
+  margin: 3rem auto;
+  padding: 0 1rem;
+  color: var(--text-muted);
+}
+.tracking__failed .panel {
+  margin-bottom: 1rem;
+}
+
+/* Trazo barbero → cliente: línea discontinua que "avanza". */
+.tracking-route {
+  stroke: var(--accent);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-dasharray: 2 12;
+  animation: route-flow 1s linear infinite;
+}
+@keyframes route-flow {
+  to {
+    stroke-dashoffset: -14;
+  }
+}
+
+.tracking__top {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  right: 0.75rem;
+  z-index: 700;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+.tracking__top > * {
+  pointer-events: auto;
+  box-shadow: var(--shadow-float);
+}
+.tracking__refit {
+  padding: 0.55rem 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--accent-strong);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+/* Tarjeta de ETA: abajo en móvil, flotando a la izquierda en escritorio. */
+.eta-card {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 800;
+  padding: 1.1rem 1.25rem calc(1.25rem + env(safe-area-inset-bottom));
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--surface);
+  box-shadow: var(--shadow-sheet);
+}
+.eta-card__vendor {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.eta-card__avatar {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--talc);
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 1.3rem;
+}
+.eta-card__name {
+  margin: 0;
+  font-weight: 700;
+}
+.eta-card__specialty {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+.eta-card__status {
+  margin-left: auto;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.eta-card--cancelled .eta-card__status {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.eta-card__headline {
+  margin: 1rem 0 1.1rem;
+}
+.eta-card__big {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: clamp(3.2rem, 14vw, 4.5rem);
+  line-height: 0.85;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+.eta-card--on_the_way .eta-card__big,
+.eta-card--arrived .eta-card__big {
+  color: var(--accent);
+}
+.eta-card__small {
+  margin: 0.4rem 0 0;
+  color: var(--text-muted);
+}
+.eta-card__done {
+  width: 100%;
+  margin-top: 1.1rem;
+}
+
+.stepper {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.stepper__step {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.stepper__bar {
+  display: flex;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-alt);
+}
+.stepper__step--done .stepper__bar {
+  background: var(--accent);
+}
+.stepper__bar .pole--horizontal {
+  height: 100%;
+}
+.stepper__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.stepper__step--current .stepper__label {
+  color: var(--text);
+}
+.stepper__step--done .stepper__label {
+  color: var(--accent-strong);
+}
+
+@media (min-width: 900px) {
+  .eta-card {
+    left: 1rem;
+    right: auto;
+    top: 1rem;
+    bottom: auto;
+    width: 400px;
+    padding-bottom: 1.25rem;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-float);
+  }
+}
