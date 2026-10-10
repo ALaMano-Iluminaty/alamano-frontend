@@ -16,7 +16,7 @@ export function AppLayout() {
       <header className="topbar">
         <Link to={session ? homePathFor(session.user.role) : '/'} className="wordmark">
           <BarberPole className="wordmark__pole" />
-          Barbería
+          ALaManoApp
         </Link>
 
         {session ? <span className="role-chip">{ROLE_LABEL[session.user.role]}</span> : null}

@@ -19,7 +19,7 @@ export function AuthLayout() {
     <div className="auth">
       <header className="auth__sign">
         <p className="auth__eyebrow">Barbería a domicilio</p>
-        <h1 className="auth__wordmark">Barbería</h1>
+        <h1 className="auth__wordmark">ALaManoApp</h1>
         <p className="auth__claim">
           Tu barbero,
           <br />a la puerta de tu casa.
