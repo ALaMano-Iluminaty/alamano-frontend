@@ -55,12 +55,21 @@ export async function fetchNearbyVendors(center: GeoPoint): Promise<Vendor[]> {
 }
 
 /**
- * 4.2 — Reserva exclusiva. El gateway garantiza que solo un cliente gana:
- * los demás reciben 409.
+ * 4.2 — Reserva exclusiva. En el Core reservar es crear un servicio en estado
+ * RESERVED (POST /services). Si otro cliente llegó antes, responde 409.
  */
-export function reserveVendor(vendorId: string): Promise<{ serviceId: string }> {
+export async function reserveVendor(
+  vendorId: string,
+  customer: { clientId: string; destination: GeoPoint },
+): Promise<{ serviceId: string }> {
   if (USE_MOCKS) return mockReserveVendor(vendorId);
-  return apiClient.post<{ serviceId: string }>(`/vendors/${vendorId}/reservations`);
+  const service = await apiClient.post<{ id: string }>('/services', {
+    professionalId: vendorId,
+    clientId: customer.clientId,
+    destinationLatitude: customer.destination.lat,
+    destinationLongitude: customer.destination.lng,
+  });
+  return { serviceId: service.id };
 }
 
 /** 4.2 — Toma un cupo. 409 si ya no quedan: el contador que veías era viejo. */
