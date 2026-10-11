@@ -1,6 +1,6 @@
 export { realtimeSocket } from './socket';
 export type { ConnectionStatus } from './socket';
-export { useRealtime, useConnectionStatus } from './useRealtime';
+export { useRealtime, useConnectionStatus, useServiceChannel } from './useRealtime';
 export { RealtimeEvent, ClientEvent, isRealtimeEnvelope } from './events';
 export type {
   RealtimeEventName,

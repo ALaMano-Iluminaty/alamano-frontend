@@ -23,25 +23,46 @@ export interface Vendor extends GeoPoint {
 }
 
 /** Lo que devuelve el Core en GET /professionals/nearby. */
+interface NearbyPromotionDto {
+  id: string;
+  description: string;
+  totalSlots: number;
+  availableSlots: number;
+}
+
 interface NearbyProfessionalDto {
   professionalId: string;
   latitude: number;
   longitude: number;
   distanceKm: number;
+  promotions?: NearbyPromotionDto[];
 }
 
 /** Radio de búsqueda por defecto, en km. */
 export const NEARBY_RADIUS_KM = 5;
 
+function toPromos(vendorId: string, promotions: NearbyPromotionDto[] = []): Promo[] {
+  return promotions.map((promo) => {
+    const lineBreak = promo.description.indexOf('\n');
+    return {
+      promoId: promo.id,
+      vendorId,
+      title: lineBreak === -1 ? promo.description : promo.description.slice(0, lineBreak),
+      description: lineBreak === -1 ? '' : promo.description.slice(lineBreak + 1),
+      remaining: promo.availableSlots,
+      total: promo.totalSlots,
+    };
+  });
+}
+
 function toVendor(dto: NearbyProfessionalDto): Vendor {
   return {
     vendorId: dto.professionalId,
-    // TODO: nombre real cuando el Core lo exponga
     name: `Vendedor ${dto.professionalId.slice(0, 6)}`,
     lat: dto.latitude,
     lng: dto.longitude,
     updatedAt: new Date().toISOString(),
-    promos: [],
+    promos: toPromos(dto.professionalId, dto.promotions),
   };
 }
 
@@ -65,7 +86,6 @@ export async function reserveVendor(
   if (USE_MOCKS) return mockReserveVendor(vendorId);
   const service = await apiClient.post<{ id: string }>('/services', {
     professionalId: vendorId,
-    clientId: customer.clientId,
     destinationLatitude: customer.destination.lat,
     destinationLongitude: customer.destination.lng,
   });

@@ -7,3 +7,5 @@ export {
   isFinished,
 } from './flow';
 export type { ServiceDetail } from './flow';
+export { toCoreStatus, toFrontStatus, toServiceDetail } from './coreMapping';
+export type { CoreServiceDto, CoreServiceStatus } from './coreMapping';

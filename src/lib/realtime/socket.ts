@@ -1,4 +1,4 @@
-import { Client, ReconnectionTimeMode, type IMessage } from '@stomp/stompjs';
+import { Client, ReconnectionTimeMode, type IMessage, type StompSubscription } from '@stomp/stompjs';
 import { USE_MOCKS } from '@/lib/mock';
 import type { RealtimeEventName, RealtimeEventPayloads } from './events';
 import { isGatewayEnvelope, translateGatewayEvent } from './gatewayAdapter';
@@ -14,6 +14,8 @@ const WS_URL = import.meta.env.VITE_WS_GATEWAY_URL ?? '/ws';
 const MAP_TOPIC = '/topic/map';
 /** Errores dirigidos a este usuario. */
 const ERRORS_QUEUE = '/user/queue/errors';
+/** Eventos de un servicio: service.status.changed y tracking.updated. */
+const SERVICE_TOPIC_PREFIX = '/topic/service.';
 
 /** Los mismos que anuncia el Gateway. */
 const HEARTBEAT_MS = 10_000;
@@ -46,6 +48,11 @@ class RealtimeSocket {
   private readonly listeners = new Map<string, Set<Listener<RealtimeEventName>>>();
   private readonly statusListeners = new Set<StatusListener>();
 
+  /** Servicios que alguna pantalla quiere escuchar, con cuántas pantallas lo piden. Es la fuente de verdad para re-suscribir. */
+  private readonly watchedServices = new Map<string, number>();
+  /** Suscripciones STOMP vivas de la conexión actual. */
+  private readonly serviceSubs = new Map<string, StompSubscription>();
+
   connect(token: string | null): void {
     this.token = token;
     this.intentionallyClosed = false;
@@ -69,6 +76,7 @@ class RealtimeSocket {
     const client = this.client;
     this.client = null;
     void client?.deactivate();
+    this.serviceSubs.clear();
     this.setStatus('closed');
   }
 
@@ -89,6 +97,32 @@ class RealtimeSocket {
     return () => {
       this.statusListeners.delete(listener);
     };
+  }
+
+  /** Escucha un servicio. Devuelve la función para dejar de escucharlo. */
+  watchService(serviceId: string): () => void {
+    this.watchedServices.set(serviceId, (this.watchedServices.get(serviceId) ?? 0) + 1);
+    this.subscribeService(serviceId);
+    return () => {
+      const remaining = (this.watchedServices.get(serviceId) ?? 1) - 1;
+      if (remaining > 0) {
+        this.watchedServices.set(serviceId, remaining);
+        return;
+      }
+      this.watchedServices.delete(serviceId);
+      const subscription = this.serviceSubs.get(serviceId);
+      this.serviceSubs.delete(serviceId);
+      if (subscription && this.client?.connected) subscription.unsubscribe();
+    };
+  }
+
+  private subscribeService(serviceId: string): void {
+    const client = this.client;
+    if (!client?.connected || this.serviceSubs.has(serviceId)) return;
+    this.serviceSubs.set(
+      serviceId,
+      client.subscribe(`${SERVICE_TOPIC_PREFIX}${serviceId}`, (message) => this.handleMessage(message)),
+    );
   }
 
   getStatus(): ConnectionStatus {
@@ -120,6 +154,9 @@ class RealtimeSocket {
       client.subscribe(ERRORS_QUEUE, (message) => {
         console.warn('[realtime] error del Gateway:', message.body);
       });
+      // Las suscripciones viejas murieron con la conexión: se rehacen las de las pantallas abiertas.
+      this.serviceSubs.clear();
+      for (const serviceId of this.watchedServices.keys()) this.subscribeService(serviceId);
     };
 
     client.onStompError = (frame) => {

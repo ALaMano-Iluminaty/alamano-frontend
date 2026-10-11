@@ -2,7 +2,6 @@ import { apiClient } from '@/lib/api-client';
 import type { GeoPoint } from '@/lib/geo';
 import { USE_MOCKS } from '@/lib/mock';
 import { mockCreatePromo, mockMyPromos } from './mocks';
-import { readStorage, writeStorage } from '@/utils';
 
 export interface MyPromo {
   promoId: string;
@@ -88,23 +87,10 @@ function toMyPromo(dto: PromotionDto): MyPromo {
   };
 }
 
-/**
- * El Core todavía no lista las promociones de un vendedor (solo expone
- * GET /promotions/{id}). Mientras tanto se recuerdan en este navegador los ids
- * que publicó y se consulta cada uno para traer sus cupos al día.
- * TODO: cuando exista un endpoint para listar las propias, esto pasa a ser una sola llamada.
- */
-const promoIdsKey = (vendorId: string): string => `barberia.myPromoIds.${vendorId}`;
-
 export async function fetchMyPromos(vendorId: string): Promise<MyPromo[]> {
   if (USE_MOCKS) return mockMyPromos(vendorId);
-  const ids = readStorage<string[]>(promoIdsKey(vendorId), []);
-  const results = await Promise.allSettled(
-    ids.map((id) => apiClient.get<PromotionDto>(`/promotions/${id}`)),
-  );
-  return results
-    .flatMap((result) => (result.status === 'fulfilled' ? [toMyPromo(result.value)] : []))
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const mine = await apiClient.get<PromotionDto[]>('/promotions/mine');
+  return mine.map(toMyPromo).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export async function createPromo(vendorId: string, promo: NewPromo): Promise<MyPromo> {
@@ -113,7 +99,5 @@ export async function createPromo(vendorId: string, promo: NewPromo): Promise<My
     description: toCoreDescription(promo),
     totalSlots: promo.totalSlots,
   });
-  const ids = readStorage<string[]>(promoIdsKey(vendorId), []);
-  writeStorage(promoIdsKey(vendorId), [created.id, ...ids.filter((id) => id !== created.id)]);
   return toMyPromo(created);
 }
