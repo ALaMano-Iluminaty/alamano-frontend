@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRealtimeConnection, useToast } from '@/context';
 import { ApiError } from '@/lib/api-client';
-import { RealtimeEvent, useRealtime } from '@/lib/realtime';
+import { RealtimeEvent, useRealtime, useServiceChannel } from '@/lib/realtime';
 import { SERVICE_STATUS_LABEL, nextStatus, type ServiceDetail } from '@/lib/service';
 import { advanceStatus, fetchService } from '../services';
 
@@ -15,6 +15,7 @@ import { advanceStatus, fetchService } from '../services';
  */
 export function useSellerService(serviceId: string) {
   const { isOnline } = useRealtimeConnection();
+  useServiceChannel(serviceId);
   const { show } = useToast();
   const [service, setService] = useState<ServiceDetail | null>(null);
   const [loading, setLoading] = useState(true);

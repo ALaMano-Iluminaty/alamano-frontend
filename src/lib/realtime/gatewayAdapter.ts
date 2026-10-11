@@ -7,6 +7,7 @@
  */
 
 import { RealtimeEvent, type RealtimeEventName, type RealtimeEventPayloads } from './events';
+import { toFrontStatus } from '@/lib/service/coreMapping';
 
 /** Sobre de todo mensaje publicado por el Gateway en /topic/map. */
 export interface GatewayEnvelope {
@@ -69,10 +70,38 @@ function translateDisconnected(envelope: GatewayEnvelope): TranslatedEvent | nul
   };
 }
 
+function translateServiceStatus(envelope: GatewayEnvelope): TranslatedEvent | null {
+  const { serviceId, status } = envelope.payload;
+  if (typeof serviceId !== 'string' || typeof status !== 'string') {
+    console.warn('[realtime] service.status.changed incompleto:', envelope);
+    return null;
+  }
+  return {
+    event: RealtimeEvent.ServiceStatusChanged,
+    data: { serviceId, status: toFrontStatus(status), changedAt: envelope.occurredAt },
+  };
+}
+
+function translateTracking(envelope: GatewayEnvelope): TranslatedEvent | null {
+  const { serviceId, latitude, longitude, etaSeconds, recordedAt } = envelope.payload;
+  if (typeof serviceId !== 'string' || !isFiniteNumber(latitude) || !isFiniteNumber(longitude)) {
+    console.warn('[realtime] tracking.updated incompleto:', envelope);
+    return null;
+  }
+  return {
+    event: RealtimeEvent.ServiceLocationUpdate,
+    data: {
+      serviceId,
+      lat: latitude,
+      lng: longitude,
+      updatedAt: typeof recordedAt === 'string' ? recordedAt : envelope.occurredAt,
+      ...(isFiniteNumber(etaSeconds) ? { etaSeconds } : {}),
+    },
+  };
+}
+
 /**
  * Convierte un evento del Gateway al formato interno. null = se ignora.
- * Los eventos de servicio (service.status.changed, tracking.updated) aún no
- * se traducen.
  */
 export function translateGatewayEvent(envelope: GatewayEnvelope): TranslatedEvent | null {
   switch (envelope.type) {
@@ -80,6 +109,10 @@ export function translateGatewayEvent(envelope: GatewayEnvelope): TranslatedEven
       return translateOnline(envelope);
     case 'professional.disconnected':
       return translateDisconnected(envelope);
+    case 'service.status.changed':
+      return translateServiceStatus(envelope);
+    case 'tracking.updated':
+      return translateTracking(envelope);
     default:
       // eslint-disable-next-line no-console
       console.debug('[realtime] evento del Gateway sin traducción, se ignora:', envelope.type);
