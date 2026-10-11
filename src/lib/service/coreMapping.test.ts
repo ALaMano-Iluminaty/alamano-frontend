@@ -23,6 +23,8 @@ describe('coreMapping', () => {
       destinationLongitude: -74.06,
       allowedTransitions: ['EN_ROUTE', 'CANCELLED'],
     };
-    expect(toServiceDetail(dto).allowedTransitions).toEqual(['ON_THE_WAY', 'CANCELLED']);
+    // Sin orden garantizado: se compara como conjunto.
+    const allowed = toServiceDetail(dto).allowedTransitions ?? [];
+    expect(new Set(allowed)).toEqual(new Set(['ON_THE_WAY', 'CANCELLED']));
   });
 });

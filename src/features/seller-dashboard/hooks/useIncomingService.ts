@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useRealtimeConnection, useToast } from '@/context';
+import { useRealtimeConnection, useSession, useToast } from '@/context';
 import type { GeoPoint } from '@/lib/geo';
 import { RealtimeEvent, useRealtime, useServiceChannel } from '@/lib/realtime';
 import { fetchActiveServices, isFinished } from '@/lib/service';
@@ -22,6 +22,8 @@ export interface IncomingService {
 export function useIncomingService() {
   const { show } = useToast();
   const { isOnline } = useRealtimeConnection();
+  const { session } = useSession();
+  const sellerId = session?.user.id;
   const [incoming, setIncoming] = useState<IncomingService | null>(null);
   useServiceChannel(incoming?.serviceId);
 
@@ -38,6 +40,8 @@ export function useIncomingService() {
 
   useRealtime(RealtimeEvent.ServiceStatusChanged, (payload) => {
     if (payload.status === 'ACCEPTED') {
+      // Solo las reservas donde este usuario es el profesional.
+      if (payload.professionalId && payload.professionalId !== sellerId) return;
       setIncoming({ serviceId: payload.serviceId, destination: null });
       show({ tone: 'success', title: 'Nuevo servicio', body: 'Un cliente te reservó. Abre el servicio para ver la ruta.' });
       void loadDestination(payload.serviceId);
@@ -52,8 +56,8 @@ export function useIncomingService() {
   // ya expone los servicios activos (fetchActiveServices devuelve null si no).
   const wasOnline = useRef(false);
   useEffect(() => {
-    if (isOnline && !wasOnline.current) {
-      void fetchActiveServices()
+    if (sellerId && isOnline && !wasOnline.current) {
+      void fetchActiveServices({ id: sellerId, role: 'SELLER' })
         .then((services) => {
           const active = services?.find((service) => !isFinished(service.status));
           if (active) setIncoming({ serviceId: active.serviceId, destination: active.customerLocation });
@@ -63,7 +67,7 @@ export function useIncomingService() {
         });
     }
     wasOnline.current = isOnline;
-  }, [isOnline]);
+  }, [isOnline, sellerId]);
 
   return incoming;
 }

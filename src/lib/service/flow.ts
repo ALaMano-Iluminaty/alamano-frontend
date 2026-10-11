@@ -36,6 +36,18 @@ export function stepIndex(status: ServiceStatus): number {
   return SERVICE_FLOW.indexOf(status);
 }
 
+/**
+ * Siguiente paso hacia adelante que el barbero puede marcar. `allowed` son las
+ * transiciones del Core (sin orden garantizado: se usan como conjunto); sin
+ * ellas (mocks) vale el flujo local. Cancelar no es un paso hacia adelante.
+ */
+export function forwardStatus(status: ServiceStatus, allowed?: readonly ServiceStatus[]): ServiceStatus | null {
+  if (!allowed) return nextStatus(status);
+  const permitted = new Set(allowed);
+  const current = stepIndex(status);
+  return SERVICE_FLOW.find((step, index) => index > current && permitted.has(step)) ?? null;
+}
+
 /** 3.2 — el barbero solo comparte ubicación mientras va de camino. */
 export function sharesLocation(status: ServiceStatus): boolean {
   return status === 'ON_THE_WAY';

@@ -195,9 +195,13 @@ Al conectar y al reconectar el socket se vuelve a pedir el servicio en curso por
 - **Cliente:** al reservar se guarda el `serviceId` en `localStorage` (`barberia.activeService`).
   Al reconectar se pide `GET /api/services/{id}`; si sigue activo, el mapa muestra "Tienes un
   servicio en curso" con acceso al seguimiento. Al terminar o cancelarse se olvida.
-- **Vendedor:** sin solución por ahora. El Core no expone los servicios activos del usuario;
+- **Vendedor:** sin solución hasta que el Core despliegue `GET /api/services/active`.
   `fetchActiveServices()` (en `lib/service/activeService.ts`) queda lista detrás de
-  `VITE_ACTIVE_SERVICES_PATH` y se usa en cuanto esa variable tenga la ruta real.
+  `VITE_ACTIVE_SERVICES_PATH` y se usa en cuanto esa variable valga `/services/active`.
+
+El Core devuelve los servicios donde el usuario es profesional **o** cliente. El front filtra por
+rol: `SELLER` solo los que tienen `professionalId === sub`, `CUSTOMER` solo los que tienen
+`clientId === sub`.
 
 ## Pendiente
 

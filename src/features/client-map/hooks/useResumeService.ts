@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useRealtimeConnection } from '@/context';
+import { useRealtimeConnection, useSession } from '@/context';
 import { ApiError } from '@/lib/api-client';
 import {
   fetchActiveServices,
@@ -14,8 +14,8 @@ import { fetchActiveService } from '../services';
  * Servicio en curso del cliente. Mientras el Core no exponga los servicios
  * activos (fetchActiveServices devuelve null), sale del id guardado al reservar.
  */
-async function resolveActiveService(): Promise<ServiceDetail | null> {
-  const fromCore = await fetchActiveServices();
+async function resolveActiveService(clientId: string): Promise<ServiceDetail | null> {
+  const fromCore = await fetchActiveServices({ id: clientId, role: 'CUSTOMER' });
   if (fromCore) return fromCore.find((service) => !isFinished(service.status)) ?? null;
 
   const serviceId = readActiveService();
@@ -39,19 +39,21 @@ async function resolveActiveService(): Promise<ServiceDetail | null> {
  */
 export function useResumeService() {
   const { isOnline } = useRealtimeConnection();
+  const { session } = useSession();
+  const clientId = session?.user.id;
   const [active, setActive] = useState<ServiceDetail | null>(null);
 
   const wasOnline = useRef(false);
   useEffect(() => {
-    if (isOnline && !wasOnline.current) {
-      resolveActiveService()
+    if (clientId && isOnline && !wasOnline.current) {
+      resolveActiveService(clientId)
         .then(setActive)
         .catch(() => {
           // Sin respuesta del Core se deja el aviso como estaba; se reintenta al reconectar.
         });
     }
     wasOnline.current = isOnline;
-  }, [isOnline]);
+  }, [isOnline, clientId]);
 
   return active;
 }

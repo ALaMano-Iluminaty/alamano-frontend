@@ -1,19 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRealtimeConnection, useToast } from '@/context';
 import { ApiError } from '@/lib/api-client';
-import { RealtimeEvent, useRealtime, useServiceChannel, type ServiceStatus } from '@/lib/realtime';
-import { nextStatus, statusLabel, type ServiceDetail } from '@/lib/service';
+import { RealtimeEvent, useRealtime, useServiceChannel } from '@/lib/realtime';
+import { forwardStatus, statusLabel, type ServiceDetail } from '@/lib/service';
 import { advanceStatus, fetchService } from '../services';
-
-/**
- * Siguiente estado que puede marcar el barbero. Lo decide el Core con
- * `allowedTransitions`; sin él (mocks) se usa el flujo local. Cancelar no es
- * un botón del barbero.
- */
-function forwardStatus(service: ServiceDetail): ServiceStatus | null {
-  const allowed = service.allowedTransitions ?? [nextStatus(service.status)];
-  return allowed.find((status): status is ServiceStatus => status !== null && status !== 'CANCELLED') ?? null;
-}
 
 /**
  * 3.2 — Servicio activo del barbero y su máquina de estados.
@@ -74,7 +64,7 @@ export function useSellerService(serviceId: string) {
     }
   });
 
-  const next = service ? forwardStatus(service) : null;
+  const next = service ? forwardStatus(service.status, service.allowedTransitions) : null;
 
   const advance = useCallback(async () => {
     if (!service || !next || advancing) return;
