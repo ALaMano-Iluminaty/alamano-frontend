@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { BarberPole, Button, ConnectionBanner } from '@/components';
 import { useRealtimeConnection, useSession } from '@/context';
 import { distanceMeters, type GeoPoint } from '@/lib/geo';
+import { statusLabel } from '@/lib/service';
 import { formatDistance, formatRelative } from '@/utils';
 import { useAvailability } from '../hooks/useAvailability';
 import { useIncomingService } from '../hooks/useIncomingService';
@@ -34,9 +35,9 @@ export function SellerDashboardScreen() {
   const vendorId = session?.user.id ?? '';
   const { isOnline, isRecovering } = useRealtimeConnection();
 
-  const availability = useAvailability();
+  const { incoming, handleBusy } = useIncomingService();
+  const availability = useAvailability({ onBusy: () => void handleBusy() });
   const { promos, loading, error, reload, create, flashId } = useMyPromos(vendorId);
-  const incoming = useIncomingService();
   const [creating, setCreating] = useState(false);
 
   const activePromos = promos.filter((promo) => promo.remaining > 0).length;
@@ -50,8 +51,17 @@ export function SellerDashboardScreen() {
           <section className="incoming" aria-live="assertive">
             <BarberPole spinning className="incoming__pole" />
             <div className="incoming__text">
-              <p className="incoming__eyebrow">Te reservaron</p>
-              <h2 className="incoming__title">Nuevo servicio</h2>
+              {incoming.status === 'ACCEPTED' ? (
+                <>
+                  <p className="incoming__eyebrow">Te reservaron</p>
+                  <h2 className="incoming__title">Nuevo servicio</h2>
+                </>
+              ) : (
+                <>
+                  <p className="incoming__eyebrow">Servicio en curso · {statusLabel(incoming.status)}</p>
+                  <h2 className="incoming__title">Continúa tu servicio</h2>
+                </>
+              )}
               <p className="incoming__detail">{destinationText(incoming.destination, availability.position)}</p>
             </div>
             <Button onClick={() => navigate(`/seller/service/${incoming.serviceId}`)}>Ir al servicio</Button>

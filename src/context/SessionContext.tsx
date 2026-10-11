@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { apiClient, configureApiClient } from '@/lib/api-client';
-import { readStorage, removeStorage, writeStorage } from '@/utils';
+import { readStorage, removeStorage, tokenSubject, writeStorage } from '@/utils';
 
 export type UserRole = 'CUSTOMER' | 'SELLER';
 
@@ -44,6 +44,14 @@ const STORAGE_KEY = 'barberia.session';
 interface RefreshResponse {
   token: string;
   refreshToken: string;
+}
+
+/**
+ * Id con el que el backend conoce al usuario: el `sub` del token. El `id` de
+ * la sesión solo se usa si el token no es legible (modo demo).
+ */
+export function sessionSubject(session: Session): string {
+  return tokenSubject(session.token) ?? session.user.id;
 }
 
 /** A dónde va cada rol tras entrar. */

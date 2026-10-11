@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useRealtimeConnection, useSession } from '@/context';
+import { sessionSubject, useRealtimeConnection, useSession } from '@/context';
 import { ApiError } from '@/lib/api-client';
 import {
   fetchActiveServices,
@@ -40,7 +40,8 @@ async function resolveActiveService(clientId: string): Promise<ServiceDetail | n
 export function useResumeService() {
   const { isOnline } = useRealtimeConnection();
   const { session } = useSession();
-  const clientId = session?.user.id;
+  // El `sub` del token: es con lo que el Core marca clientId.
+  const clientId = session ? sessionSubject(session) : undefined;
   const [active, setActive] = useState<ServiceDetail | null>(null);
 
   const wasOnline = useRef(false);
@@ -48,8 +49,9 @@ export function useResumeService() {
     if (clientId && isOnline && !wasOnline.current) {
       resolveActiveService(clientId)
         .then(setActive)
-        .catch(() => {
+        .catch((error: unknown) => {
           // Sin respuesta del Core se deja el aviso como estaba; se reintenta al reconectar.
+          console.warn('[cliente] no se pudo recuperar el servicio en curso:', error);
         });
     }
     wasOnline.current = isOnline;
