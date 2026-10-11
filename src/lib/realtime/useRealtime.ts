@@ -31,3 +31,11 @@ export function useConnectionStatus(): ConnectionStatus {
     () => 'idle' as ConnectionStatus,
   );
 }
+
+/** Mientras la pantalla esté abierta, escucha los eventos de este servicio. */
+export function useServiceChannel(serviceId: string | undefined): void {
+  useEffect(() => {
+    if (!serviceId) return;
+    return realtimeSocket.watchService(serviceId);
+  }, [serviceId]);
+}

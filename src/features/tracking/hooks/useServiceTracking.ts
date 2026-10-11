@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRealtimeConnection } from '@/context';
 import { estimateEtaSeconds } from '@/lib/geo';
-import { RealtimeEvent, useRealtime } from '@/lib/realtime';
+import { RealtimeEvent, useRealtime, useServiceChannel } from '@/lib/realtime';
 import type { ServiceDetail } from '@/lib/service';
 import { fetchService } from '../services';
 
@@ -14,6 +14,7 @@ import { fetchService } from '../services';
  */
 export function useServiceTracking(serviceId: string) {
   const { isOnline } = useRealtimeConnection();
+  useServiceChannel(serviceId);
   const [service, setService] = useState<ServiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
