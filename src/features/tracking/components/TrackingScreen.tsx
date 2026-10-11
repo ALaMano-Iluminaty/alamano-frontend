@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, ConnectionBanner } from '@/components';
 import { useRealtimeConnection } from '@/context';
-import { SERVICE_STATUS_LABEL, type ServiceDetail } from '@/lib/service';
+import { statusLabel, type ServiceDetail } from '@/lib/service';
 import { etaMinutes, formatTime } from '@/utils';
 import { useServiceTracking } from '../hooks/useServiceTracking';
 import { ServiceStepper } from './ServiceStepper';
@@ -28,10 +28,15 @@ function headline(service: ServiceDetail): { big: string; small: string } {
     }
     case 'ARRIVED':
       return { big: 'En la puerta', small: `${service.vendor.name} ya llegó a tu ubicación.` };
+    case 'IN_PROGRESS':
+      return { big: 'Iniciando', small: `${service.vendor.name} empezó tu servicio.` };
     case 'COMPLETED':
       return { big: 'Listo', small: 'Servicio completado. ¡Gracias por usar ALaManoApp!' };
     case 'CANCELLED':
       return { big: 'Cancelado', small: 'Este servicio se canceló.' };
+    default:
+      // Estado que el front aún no conoce: se muestra tal cual en vez de romper la pantalla.
+      return { big: statusLabel(service.status), small: '' };
   }
 }
 
@@ -99,7 +104,7 @@ export function TrackingScreen({ serviceId }: TrackingScreenProps) {
             <p className="eta-card__name">{service.vendor.name}</p>
             {service.vendor.specialty ? <p className="eta-card__specialty">{service.vendor.specialty}</p> : null}
           </div>
-          <span className="eta-card__status">{SERVICE_STATUS_LABEL[service.status]}</span>
+          <span className="eta-card__status">{statusLabel(service.status)}</span>
         </header>
 
         {/* Se anuncia cada cambio de estado o de ETA sin mover el foco. */}

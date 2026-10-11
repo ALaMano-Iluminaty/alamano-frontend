@@ -1,12 +1,14 @@
 import { Client, ReconnectionTimeMode, type IMessage, type StompSubscription } from '@stomp/stompjs';
 import { USE_MOCKS } from '@/lib/mock';
+import { EventGate } from './eventGate';
 import type { RealtimeEventName, RealtimeEventPayloads } from './events';
-import { isGatewayEnvelope, translateGatewayEvent } from './gatewayAdapter';
+import { isGatewayEnvelope, translateGatewayEvent, type GatewayEnvelope } from './gatewayAdapter';
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'open' | 'reconnecting' | 'closed';
 
 type Listener<E extends RealtimeEventName> = (payload: RealtimeEventPayloads[E]) => void;
 type StatusListener = (status: ConnectionStatus) => void;
+export type EnvelopeHandler = (envelope: GatewayEnvelope) => void;
 
 const WS_URL = import.meta.env.VITE_WS_GATEWAY_URL ?? '/ws';
 
@@ -16,6 +18,8 @@ const MAP_TOPIC = '/topic/map';
 const ERRORS_QUEUE = '/user/queue/errors';
 /** Eventos de un servicio: service.status.changed y tracking.updated. */
 const SERVICE_TOPIC_PREFIX = '/topic/service.';
+/** Servicios del vendedor: el Gateway avisa aquí cuando lo reservan (RESERVED). */
+export const SELLER_SERVICES_QUEUE = '/user/queue/services';
 
 /** Los mismos que anuncia el Gateway. */
 const HEARTBEAT_MS = 10_000;
@@ -31,6 +35,13 @@ function brokerUrl(): string {
   return `${protocol}//${window.location.host}${WS_URL}`;
 }
 
+/** Una suscripción pedida por la app. Sobrevive a las reconexiones; `stomp` no. */
+interface Subscription {
+  destination: string;
+  handler: EnvelopeHandler;
+  stomp: StompSubscription | null;
+}
+
 /**
  * Única conexión en tiempo real de la app.
  *
@@ -38,7 +49,7 @@ function brokerUrl(): string {
  * contrato interno (ver gatewayAdapter.ts). Hacia fuera la API no cambia:
  * `useRealtime` y las features no saben que hay STOMP debajo.
  */
-class RealtimeSocket {
+export class RealtimeSocket {
   private client: Client | null = null;
   private token: string | null = null;
   private status: ConnectionStatus = 'idle';
@@ -48,10 +59,15 @@ class RealtimeSocket {
   private readonly listeners = new Map<string, Set<Listener<RealtimeEventName>>>();
   private readonly statusListeners = new Set<StatusListener>();
 
-  /** Servicios que alguna pantalla quiere escuchar, con cuántas pantallas lo piden. Es la fuente de verdad para re-suscribir. */
-  private readonly watchedServices = new Map<string, number>();
-  /** Suscripciones STOMP vivas de la conexión actual. */
-  private readonly serviceSubs = new Map<string, StompSubscription>();
+  /** Fuente de verdad para re-suscribir: en cada onConnect se rehacen todas. */
+  private readonly subscriptions = new Set<Subscription>();
+  /** Servicios que alguna pantalla escucha, con cuántas lo piden. */
+  private readonly watchedServices = new Map<string, { count: number; release: () => void }>();
+  private readonly gate = new EventGate();
+
+  constructor() {
+    this.subscribe(MAP_TOPIC);
+  }
 
   connect(token: string | null): void {
     this.token = token;
@@ -76,7 +92,9 @@ class RealtimeSocket {
     const client = this.client;
     this.client = null;
     void client?.deactivate();
-    this.serviceSubs.clear();
+    for (const subscription of this.subscriptions) subscription.stomp = null;
+    // Otra sesión puede reutilizar ids de servicio: no se arrastran versiones viejas.
+    this.gate.reset();
     this.setStatus('closed');
   }
 
@@ -99,30 +117,39 @@ class RealtimeSocket {
     };
   }
 
-  /** Escucha un servicio. Devuelve la función para dejar de escucharlo. */
-  watchService(serviceId: string): () => void {
-    this.watchedServices.set(serviceId, (this.watchedServices.get(serviceId) ?? 0) + 1);
-    this.subscribeService(serviceId);
+  /**
+   * Suscribe a un destino STOMP y la mantiene a través de las reconexiones.
+   * Sin `handler`, los eventos se traducen y llegan a los listeners de `on`.
+   * Devuelve la función para desuscribirse.
+   */
+  subscribe(destination: string, handler: EnvelopeHandler = (envelope) => this.deliver(envelope)): () => void {
+    const subscription: Subscription = { destination, handler, stomp: null };
+    this.subscriptions.add(subscription);
+    this.attach(subscription);
     return () => {
-      const remaining = (this.watchedServices.get(serviceId) ?? 1) - 1;
-      if (remaining > 0) {
-        this.watchedServices.set(serviceId, remaining);
-        return;
-      }
-      this.watchedServices.delete(serviceId);
-      const subscription = this.serviceSubs.get(serviceId);
-      this.serviceSubs.delete(serviceId);
-      if (subscription && this.client?.connected) subscription.unsubscribe();
+      this.subscriptions.delete(subscription);
+      if (subscription.stomp && this.client?.connected) subscription.stomp.unsubscribe();
+      subscription.stomp = null;
     };
   }
 
-  private subscribeService(serviceId: string): void {
-    const client = this.client;
-    if (!client?.connected || this.serviceSubs.has(serviceId)) return;
-    this.serviceSubs.set(
-      serviceId,
-      client.subscribe(`${SERVICE_TOPIC_PREFIX}${serviceId}`, (message) => this.handleMessage(message)),
-    );
+  /** Escucha un servicio. Devuelve la función para dejar de escucharlo. */
+  watchService(serviceId: string): () => void {
+    const watched = this.watchedServices.get(serviceId);
+    if (watched) watched.count += 1;
+    else this.watchedServices.set(serviceId, { count: 1, release: this.subscribe(`${SERVICE_TOPIC_PREFIX}${serviceId}`) });
+
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const current = this.watchedServices.get(serviceId);
+      if (!current) return;
+      current.count -= 1;
+      if (current.count > 0) return;
+      this.watchedServices.delete(serviceId);
+      current.release();
+    };
   }
 
   getStatus(): ConnectionStatus {
@@ -134,6 +161,14 @@ class RealtimeSocket {
     if (USE_MOCKS) return;
     // eslint-disable-next-line no-console
     console.info('[realtime] el envío por WebSocket aún no está soportado, se descarta:', event);
+  }
+
+  private attach(subscription: Subscription): void {
+    const client = this.client;
+    if (!client?.connected || subscription.stomp) return;
+    subscription.stomp = client.subscribe(subscription.destination, (message) =>
+      this.handleMessage(message, subscription.handler),
+    );
   }
 
   private createClient(): Client {
@@ -149,14 +184,14 @@ class RealtimeSocket {
 
     client.onConnect = () => {
       this.setStatus('open');
-      // stompjs no rehace las suscripciones al reconectar: van en cada onConnect.
-      client.subscribe(MAP_TOPIC, (message) => this.handleMessage(message));
       client.subscribe(ERRORS_QUEUE, (message) => {
         console.warn('[realtime] error del Gateway:', message.body);
       });
-      // Las suscripciones viejas murieron con la conexión: se rehacen las de las pantallas abiertas.
-      this.serviceSubs.clear();
-      for (const serviceId of this.watchedServices.keys()) this.subscribeService(serviceId);
+      // stompjs no rehace las suscripciones al reconectar: las viejas murieron con la conexión.
+      for (const subscription of this.subscriptions) {
+        subscription.stomp = null;
+        this.attach(subscription);
+      }
     };
 
     client.onStompError = (frame) => {
@@ -182,7 +217,7 @@ class RealtimeSocket {
     return client;
   }
 
-  private handleMessage(message: IMessage): void {
+  private handleMessage(message: IMessage, handler: EnvelopeHandler): void {
     let parsed: unknown;
     try {
       parsed = JSON.parse(message.body);
@@ -196,7 +231,13 @@ class RealtimeSocket {
       return;
     }
 
-    const translated = translateGatewayEvent(parsed);
+    // Repetido (llegó por dos destinos) o más viejo que lo ya aplicado.
+    if (!this.gate.accept(parsed)) return;
+    handler(parsed);
+  }
+
+  private deliver(envelope: GatewayEnvelope): void {
+    const translated = translateGatewayEvent(envelope);
     if (translated) this.dispatch(translated.event, translated.data);
   }
 

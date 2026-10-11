@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSession, useToast } from '@/context';
 import { ApiError } from '@/lib/api-client';
 import type { GeoPoint } from '@/lib/geo';
+import { rememberActiveService } from '@/lib/service';
 import { claimPromo, reserveVendor, type Promo, type Vendor } from '../services';
 
 interface VendorActionsOptions {
@@ -41,6 +42,8 @@ export function useVendorActions({ position, onVendorTaken, onPromoStock }: Vend
           clientId: session.user.id,
           destination: position,
         });
+        // 6.4 — si se cae la conexión o se recarga, el servicio se recupera por este id.
+        rememberActiveService(serviceId);
         show({ tone: 'success', title: `${vendor.name} está reservado para ti`, body: 'Síguelo en el mapa.' });
         navigate(`/tracking/${serviceId}`);
       } catch (caught) {

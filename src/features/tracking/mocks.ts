@@ -5,7 +5,7 @@ import type { ServiceDetail } from '@/lib/service';
 
 /**
  * Simulación de un servicio completo: aceptado → en camino (el barbero se
- * acerca con ETA) → en el sitio → completado.
+ * acerca con ETA) → llegó → iniciando → finalizado.
  */
 
 const services = new Map<string, ServiceDetail>();
@@ -64,7 +64,8 @@ function simulate(service: ServiceDetail): void {
     if (distanceMeters(next, service.customerLocation) < 60) {
       clearInterval(timer);
       changeStatus(service, 'ARRIVED');
-      setTimeout(() => changeStatus(service, 'COMPLETED'), 12_000);
+      setTimeout(() => changeStatus(service, 'IN_PROGRESS'), 4_000);
+      setTimeout(() => changeStatus(service, 'COMPLETED'), 14_000);
     }
   }, 2_000);
 }

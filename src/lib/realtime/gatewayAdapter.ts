@@ -9,7 +9,7 @@
 import { RealtimeEvent, type RealtimeEventName, type RealtimeEventPayloads } from './events';
 import { toFrontStatus } from '@/lib/service/coreMapping';
 
-/** Sobre de todo mensaje publicado por el Gateway en /topic/map. */
+/** Sobre de todo mensaje del Gateway (/topic/map, /topic/service.{id}, /user/queue/services). */
 export interface GatewayEnvelope {
   eventId: string;
   type: string;
@@ -71,14 +71,22 @@ function translateDisconnected(envelope: GatewayEnvelope): TranslatedEvent | nul
 }
 
 function translateServiceStatus(envelope: GatewayEnvelope): TranslatedEvent | null {
-  const { serviceId, status } = envelope.payload;
+  const { serviceId, status, previousStatus, professionalId, clientId, version } = envelope.payload;
   if (typeof serviceId !== 'string' || typeof status !== 'string') {
     console.warn('[realtime] service.status.changed incompleto:', envelope);
     return null;
   }
   return {
     event: RealtimeEvent.ServiceStatusChanged,
-    data: { serviceId, status: toFrontStatus(status), changedAt: envelope.occurredAt },
+    data: {
+      serviceId,
+      status: toFrontStatus(status),
+      previousStatus: typeof previousStatus === 'string' ? toFrontStatus(previousStatus) : null,
+      ...(typeof professionalId === 'string' ? { professionalId } : {}),
+      ...(typeof clientId === 'string' ? { clientId } : {}),
+      ...(isFiniteNumber(version) ? { version } : {}),
+      changedAt: envelope.occurredAt,
+    },
   };
 }
 

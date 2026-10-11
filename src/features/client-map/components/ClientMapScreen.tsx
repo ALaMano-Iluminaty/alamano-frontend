@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Marker } from 'react-leaflet';
+import { useNavigate } from 'react-router-dom';
 import type L from 'leaflet';
 import { Button, ConnectionBanner } from '@/components';
 import { useRealtimeConnection } from '@/context';
 import { useCurrentPosition } from '@/lib/geo';
 import { BaseMap, selfIcon } from '@/lib/map';
+import { statusLabel } from '@/lib/service';
 import { useNearbyVendors } from '../hooks/useNearbyVendors';
+import { useResumeService } from '../hooks/useResumeService';
 import { useVendorActions } from '../hooks/useVendorActions';
 import { NEARBY_RADIUS_KM } from '../services';
 import { MapBridge } from './MapBridge';
@@ -16,6 +19,8 @@ import '../client-map.css';
 const USER_ZOOM = 15;
 
 export function ClientMapScreen() {
+  const navigate = useNavigate();
+  const activeService = useResumeService();
   const { position, status: locateStatus, locate } = useCurrentPosition();
   const located = locateStatus !== 'locating';
   const { isOnline, isRecovering } = useRealtimeConnection();
@@ -91,6 +96,15 @@ export function ClientMapScreen() {
         </div>
 
         <ConnectionBanner isStale={!isOnline} isRecovering={isRecovering} onRetry={() => void reload()} />
+
+        {activeService ? (
+          <div className="client-map__notice" role="status">
+            <span>Tienes un servicio en curso · {statusLabel(activeService.status)}</span>
+            <Button variant="ghost" onClick={() => navigate(`/tracking/${activeService.serviceId}`)}>
+              Ver servicio
+            </Button>
+          </div>
+        ) : null}
 
         {locateStatus === 'denied' || locateStatus === 'unavailable' ? (
           <div className="client-map__notice" role="status">

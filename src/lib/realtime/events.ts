@@ -18,9 +18,7 @@ export const RealtimeEvent = {
   /** 4.2 — cambió el stock de una promoción. */
   PromoStockUpdated: 'PROMO_STOCK_UPDATED',
 
-  /** 3.2 — al barbero le asignaron un servicio (un cliente lo reservó). */
-  ServiceAssigned: 'SERVICE_ASSIGNED',
-  /** 3.1 — el servicio cambió de estado. */
+  /** 3.1 / 3.2 — el servicio cambió de estado (también al crearse: ACCEPTED). */
   ServiceStatusChanged: 'SERVICE_STATUS_CHANGED',
   /** 3.1 — posición del barbero durante un servicio activo, con ETA. */
   ServiceLocationUpdate: 'SERVICE_LOCATION_UPDATE',
@@ -36,7 +34,7 @@ export const ClientEvent = {
   VendorOffline: 'VENDOR_OFFLINE',
 } as const;
 
-export type ServiceStatus = 'ACCEPTED' | 'ON_THE_WAY' | 'ARRIVED' | 'COMPLETED' | 'CANCELLED';
+export type ServiceStatus = 'ACCEPTED' | 'ON_THE_WAY' | 'ARRIVED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 
 export interface VendorLocationUpdatePayload extends GeoPoint {
   vendorId: string;
@@ -58,15 +56,15 @@ export interface PromoStockUpdatedPayload {
   total: number;
 }
 
-export interface ServiceAssignedPayload {
-  serviceId: string;
-  customerName: string;
-  customerLocation: GeoPoint;
-}
-
 export interface ServiceStatusChangedPayload {
   serviceId: string;
   status: ServiceStatus;
+  /** null cuando el evento es la creación del servicio. */
+  previousStatus?: ServiceStatus | null;
+  professionalId?: string;
+  clientId?: string;
+  /** Versión del servicio en el Core; empieza en 0. */
+  version?: number;
   changedAt: string;
 }
 
@@ -82,7 +80,6 @@ export interface RealtimeEventPayloads {
   [RealtimeEvent.VendorLocationUpdate]: VendorLocationUpdatePayload;
   [RealtimeEvent.VendorDisconnected]: VendorDisconnectedPayload;
   [RealtimeEvent.PromoStockUpdated]: PromoStockUpdatedPayload;
-  [RealtimeEvent.ServiceAssigned]: ServiceAssignedPayload;
   [RealtimeEvent.ServiceStatusChanged]: ServiceStatusChangedPayload;
   [RealtimeEvent.ServiceLocationUpdate]: ServiceLocationUpdatePayload;
 }

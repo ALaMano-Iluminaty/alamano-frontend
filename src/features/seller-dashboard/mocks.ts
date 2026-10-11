@@ -1,6 +1,7 @@
 import type { GeoPoint } from '@/lib/geo';
 import { mockDelay } from '@/lib/mock';
 import { RealtimeEvent, realtimeSocket } from '@/lib/realtime';
+import type { ServiceDetail } from '@/lib/service';
 import type { MyPromo, NewPromo } from './services';
 
 /**
@@ -46,6 +47,22 @@ export async function mockCreatePromo(vendorId: string, input: NewPromo): Promis
   return { ...promo };
 }
 
+/** Destino de cada servicio simulado, por id. */
+const incoming = new Map<string, GeoPoint>();
+
+export async function mockIncomingService(serviceId: string): Promise<ServiceDetail> {
+  await mockDelay(400);
+  return {
+    serviceId,
+    status: 'ACCEPTED',
+    vendor: { id: 'vendor-demo', name: 'Tú' },
+    customer: { id: 'user-demo', name: 'Cliente' },
+    customerLocation: incoming.get(serviceId) ?? { lat: 4.645, lng: -74.06 },
+    vendorLocation: null,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 /**
  * Arranca mientras el barbero está en línea; devuelve la función para parar.
  * La posición la da el propio navegador: aquí solo se simula a los clientes.
@@ -67,13 +84,16 @@ export function startOnlineSimulation(getPosition: () => GeoPoint | null): () =>
     }
 
     if (tick === 5) {
+      // Igual que el Gateway: llega RESERVED (ACCEPTED) y el destino se pide aparte.
       const here = getPosition();
-      realtimeSocket.dispatch(RealtimeEvent.ServiceAssigned, {
-        serviceId: `demo-laura-${Date.now().toString(36)}`,
-        customerName: 'Laura Méndez',
-        customerLocation: here
-          ? { lat: here.lat - 0.006, lng: here.lng + 0.004 }
-          : { lat: 4.645, lng: -74.06 },
+      const serviceId = `demo-laura-${Date.now().toString(36)}`;
+      incoming.set(serviceId, here ? { lat: here.lat - 0.006, lng: here.lng + 0.004 } : { lat: 4.645, lng: -74.06 });
+      realtimeSocket.dispatch(RealtimeEvent.ServiceStatusChanged, {
+        serviceId,
+        status: 'ACCEPTED',
+        previousStatus: null,
+        version: 0,
+        changedAt: new Date().toISOString(),
       });
     }
   }, 2_500);
