@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ToastViewport, type ToastItem, type ToastTone } from '@/components';
+import { ToastViewport, type ToastAction, type ToastItem, type ToastTone } from '@/components';
 
 interface ToastInput {
   tone?: ToastTone;
@@ -7,6 +7,8 @@ interface ToastInput {
   body?: string;
   /** ms en pantalla. Por defecto 5000. */
   duration?: number;
+  /** Botón opcional dentro del aviso. */
+  action?: ToastAction;
 }
 
 interface ToastContextValue {
@@ -24,10 +26,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const show = useCallback(
-    ({ tone = 'info', title, body, duration = 5_000 }: ToastInput) => {
+    ({ tone = 'info', title, body, duration = 5_000, action }: ToastInput) => {
       const id = ++nextId.current;
       // Máximo tres a la vez: si llegan ráfagas de eventos, se cae el más viejo.
-      setToasts((current) => [...current.slice(-2), { id, tone, title, body }]);
+      setToasts((current) => [...current.slice(-2), { id, tone, title, body, action }]);
       setTimeout(() => dismiss(id), duration);
     },
     [dismiss],

@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BarberPole, Button, ConnectionBanner } from '@/components';
 import { useRealtimeConnection, useSession } from '@/context';
-import { formatRelative } from '@/utils';
+import { distanceMeters, type GeoPoint } from '@/lib/geo';
+import { statusLabel } from '@/lib/service';
+import { formatDistance, formatRelative } from '@/utils';
 import { useAvailability } from '../hooks/useAvailability';
 import { useIncomingService } from '../hooks/useIncomingService';
 import { useMyPromos } from '../hooks/useMyPromos';
@@ -20,15 +22,22 @@ const GPS_LABEL = {
   unavailable: 'GPS no disponible',
 } as const;
 
+/** El Core no da nombre ni dirección del cliente: solo el punto de destino. */
+function destinationText(destination: GeoPoint | null, me: GeoPoint | null): string {
+  if (!destination) return 'Cargando el destino…';
+  if (me) return `Destino a ${formatDistance(distanceMeters(me, destination))} de ti`;
+  return `Destino: ${destination.lat.toFixed(5)}, ${destination.lng.toFixed(5)}`;
+}
+
 export function SellerDashboardScreen() {
   const navigate = useNavigate();
   const { session } = useSession();
   const vendorId = session?.user.id ?? '';
   const { isOnline, isRecovering } = useRealtimeConnection();
 
-  const availability = useAvailability();
+  const { incoming, handleBusy } = useIncomingService();
+  const availability = useAvailability({ onBusy: () => void handleBusy() });
   const { promos, loading, error, reload, create, flashId } = useMyPromos(vendorId);
-  const incoming = useIncomingService();
   const [creating, setCreating] = useState(false);
 
   const activePromos = promos.filter((promo) => promo.remaining > 0).length;
@@ -42,8 +51,18 @@ export function SellerDashboardScreen() {
           <section className="incoming" aria-live="assertive">
             <BarberPole spinning className="incoming__pole" />
             <div className="incoming__text">
-              <p className="incoming__eyebrow">Nuevo servicio</p>
-              <h2 className="incoming__title">{incoming.customerName} te reservó</h2>
+              {incoming.status === 'ACCEPTED' ? (
+                <>
+                  <p className="incoming__eyebrow">Te reservaron</p>
+                  <h2 className="incoming__title">Nuevo servicio</h2>
+                </>
+              ) : (
+                <>
+                  <p className="incoming__eyebrow">Servicio en curso · {statusLabel(incoming.status)}</p>
+                  <h2 className="incoming__title">Continúa tu servicio</h2>
+                </>
+              )}
+              <p className="incoming__detail">{destinationText(incoming.destination, availability.position)}</p>
             </div>
             <Button onClick={() => navigate(`/seller/service/${incoming.serviceId}`)}>Ir al servicio</Button>
           </section>

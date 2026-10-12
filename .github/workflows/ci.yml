@@ -27,6 +27,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Tests
+        run: npm test
+
       # Sin variables VITE_*: el código usa /api, /auth y /ws (rutas relativas),
       # que son las que sirve nginx en la VM.
       - name: Build

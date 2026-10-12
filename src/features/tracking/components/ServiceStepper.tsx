@@ -1,18 +1,19 @@
 import { BarberPole } from '@/components';
 import type { ServiceStatus } from '@/lib/realtime';
-import { SERVICE_FLOW, SERVICE_STATUS_LABEL, stepIndex } from '@/lib/service';
+import { SERVICE_STEPS, statusLabel } from '@/lib/service';
 
 /**
- * Aceptado → En camino → En el sitio → Completado.
+ * En camino → Llegó → Iniciando → Finalizado.
  * El tramo en curso lleva el poste girando: es lo que está pasando ahora.
+ * Recién reservado (ACCEPTED) todavía no hay tramo en curso.
  */
 export function ServiceStepper({ status }: { status: ServiceStatus }) {
-  const current = stepIndex(status);
+  const current = SERVICE_STEPS.indexOf(status);
   const finished = status === 'COMPLETED';
 
   return (
     <ol className="stepper">
-      {SERVICE_FLOW.map((step, index) => {
+      {SERVICE_STEPS.map((step, index) => {
         const state = index < current || finished ? 'done' : index === current ? 'current' : 'todo';
         return (
           <li
@@ -23,7 +24,7 @@ export function ServiceStepper({ status }: { status: ServiceStatus }) {
             <span className="stepper__bar" aria-hidden="true">
               {state === 'current' ? <BarberPole orientation="horizontal" spinning /> : null}
             </span>
-            <span className="stepper__label">{SERVICE_STATUS_LABEL[step]}</span>
+            <span className="stepper__label">{statusLabel(step)}</span>
           </li>
         );
       })}

@@ -1,5 +1,6 @@
-export { realtimeSocket } from './socket';
-export type { ConnectionStatus } from './socket';
+export { realtimeSocket, SELLER_SERVICES_QUEUE } from './socket';
+export type { ConnectionStatus, EnvelopeHandler } from './socket';
+export type { GatewayEnvelope } from './gatewayAdapter';
 export { useRealtime, useConnectionStatus, useServiceChannel } from './useRealtime';
 export { RealtimeEvent, ClientEvent, isRealtimeEnvelope } from './events';
 export type {
@@ -11,7 +12,6 @@ export type {
   VendorLocationUpdatePayload,
   VendorDisconnectedPayload,
   PromoStockUpdatedPayload,
-  ServiceAssignedPayload,
   ServiceStatusChangedPayload,
   ServiceLocationUpdatePayload,
 } from './events';

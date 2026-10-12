@@ -6,15 +6,24 @@ import type { ServiceStatus } from '@/lib/realtime';
  * cliente (3.1) y la del barbero (3.2): los dos tienen que leer igual el
  * mismo estado.
  */
-export const SERVICE_FLOW: readonly ServiceStatus[] = ['ACCEPTED', 'ON_THE_WAY', 'ARRIVED', 'COMPLETED'];
+export const SERVICE_FLOW: readonly ServiceStatus[] = ['ACCEPTED', 'ON_THE_WAY', 'ARRIVED', 'IN_PROGRESS', 'COMPLETED'];
+
+/** Pasos del stepper del cliente: la reserva es el punto de partida, no un paso. */
+export const SERVICE_STEPS: readonly ServiceStatus[] = SERVICE_FLOW.slice(1);
 
 export const SERVICE_STATUS_LABEL: Record<ServiceStatus, string> = {
   ACCEPTED: 'Aceptado',
   ON_THE_WAY: 'En camino',
-  ARRIVED: 'En el sitio',
-  COMPLETED: 'Completado',
+  ARRIVED: 'Llegó',
+  IN_PROGRESS: 'Iniciando',
+  COMPLETED: 'Finalizado',
   CANCELLED: 'Cancelado',
 };
+
+/** Etiqueta con respaldo: un estado que el front no conoce se muestra tal cual. */
+export function statusLabel(status: ServiceStatus): string {
+  return SERVICE_STATUS_LABEL[status] ?? status;
+}
 
 /** Único estado al que se puede avanzar desde `status`, o null si ya terminó. */
 export function nextStatus(status: ServiceStatus): ServiceStatus | null {
@@ -25,6 +34,18 @@ export function nextStatus(status: ServiceStatus): ServiceStatus | null {
 
 export function stepIndex(status: ServiceStatus): number {
   return SERVICE_FLOW.indexOf(status);
+}
+
+/**
+ * Siguiente paso hacia adelante que el barbero puede marcar. `allowed` son las
+ * transiciones del Core (sin orden garantizado: se usan como conjunto); sin
+ * ellas (mocks) vale el flujo local. Cancelar no es un paso hacia adelante.
+ */
+export function forwardStatus(status: ServiceStatus, allowed?: readonly ServiceStatus[]): ServiceStatus | null {
+  if (!allowed) return nextStatus(status);
+  const permitted = new Set(allowed);
+  const current = stepIndex(status);
+  return SERVICE_FLOW.find((step, index) => index > current && permitted.has(step)) ?? null;
 }
 
 /** 3.2 — el barbero solo comparte ubicación mientras va de camino. */
@@ -46,6 +67,11 @@ export interface ServiceDetail {
   /** null hasta que el barbero arranca el trayecto. */
   vendorLocation: GeoPoint | null;
   etaSeconds?: number;
+  /**
+   * Estados a los que el Core deja pasar (viene en GET /services/:id). Sin él
+   * (mocks), se usa `nextStatus`.
+   */
+  allowedTransitions?: ServiceStatus[];
   /** Ruta física opcional; sin ella se traza la línea recta. */
   route?: GeoPoint[];
   updatedAt: string;

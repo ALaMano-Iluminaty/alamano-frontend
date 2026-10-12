@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
-import { realtimeSocket, useConnectionStatus, type ConnectionStatus } from '@/lib/realtime';
+import { SELLER_SERVICES_QUEUE, realtimeSocket, useConnectionStatus, type ConnectionStatus } from '@/lib/realtime';
 import { useSession } from './SessionContext';
 
 interface RealtimeContextValue {
@@ -19,6 +19,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   const { session } = useSession();
   const status = useConnectionStatus();
   const token = session?.token ?? null;
+  const isSeller = session?.user.role === 'SELLER';
 
   useEffect(() => {
     if (!token) {
@@ -28,6 +29,12 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     realtimeSocket.connect(token);
     return () => realtimeSocket.disconnect();
   }, [token]);
+
+  // El vendedor se entera por aquí de que lo reservaron (service.status.changed RESERVED).
+  useEffect(() => {
+    if (!token || !isSeller) return;
+    return realtimeSocket.subscribe(SELLER_SERVICES_QUEUE);
+  }, [token, isSeller]);
 
   const value = useMemo<RealtimeContextValue>(
     () => ({

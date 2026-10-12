@@ -212,6 +212,11 @@
 .incoming__title {
   font-size: 1.6rem;
 }
+.incoming__detail {
+  margin: 0.25rem 0 0;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
 
 /* ---- promociones ---- */
 

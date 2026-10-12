@@ -1,6 +1,7 @@
 import { apiClient } from '@/lib/api-client';
 import type { GeoPoint } from '@/lib/geo';
 import { USE_MOCKS } from '@/lib/mock';
+import { toServiceDetail, type CoreServiceDto, type ServiceDetail } from '@/lib/service';
 import { mockClaimPromo, mockNearbyVendors, mockReserveVendor } from './mocks';
 
 export interface Promo {
@@ -90,6 +91,13 @@ export async function reserveVendor(
     destinationLongitude: customer.destination.lng,
   });
   return { serviceId: service.id };
+}
+
+/** 6.4 — Snapshot del servicio en curso guardado. En modo demo no hay nada que recuperar. */
+export async function fetchActiveService(serviceId: string): Promise<ServiceDetail | null> {
+  if (USE_MOCKS) return null;
+  const dto = await apiClient.get<CoreServiceDto>(`/services/${serviceId}`);
+  return toServiceDetail(dto);
 }
 
 /** 4.2 — Toma un cupo. 409 si ya no quedan: el contador que veías era viejo. */

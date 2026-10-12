@@ -31,8 +31,11 @@ function announceOffline(): void {
  * VENDOR_OFFLINE, para desaparecer del mapa de los clientes al instante en
  * vez de esperar a que el servidor note el silencio.
  */
-export function useAvailability() {
+export function useAvailability(options: { onBusy?: () => void } = {}) {
   const { show } = useToast();
+  // 409 professional_busy al ponerse en línea. En ref: no debe rehacer el efecto que lo llama.
+  const onBusyRef = useRef(options.onBusy);
+  onBusyRef.current = options.onBusy;
   const [online, setOnline] = useState(false);
   /** Ya se pidió al Core ponerse en línea en esta sesión (la petición puede seguir en vuelo). */
   const announcedRef = useRef(false);
@@ -129,6 +132,11 @@ export function useAvailability() {
       .catch((error: unknown) => {
         goOffline();
         if (error instanceof ApiError && error.status === 409 && error.code === PROFESSIONAL_BUSY) {
+          // Quien sabe recuperar el servicio en curso se encarga del aviso (con "Ir al servicio").
+          if (onBusyRef.current) {
+            onBusyRef.current();
+            return;
+          }
           show({
             tone: 'conflict',
             title: 'Tienes un servicio en curso',

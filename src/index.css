@@ -492,6 +492,18 @@ code {
   font-size: 0.88rem;
   color: var(--text-muted);
 }
+.toast__action {
+  align-self: flex-start;
+  margin-top: 0.35rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
 .toast__close {
   border: 0;
   background: none;

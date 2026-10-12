@@ -4,11 +4,13 @@ import { stepIndex } from '@/lib/service';
 
 interface StatusControlsProps {
   status: ServiceStatus;
+  /** Paso que el Core permite ahora (allowedTransitions); null = ninguno. */
+  next: ServiceStatus | null;
   advancing: boolean;
   onAdvance: () => void;
 }
 
-/** Los tres pasos que controla el barbero, en el único orden posible. */
+/** Los pasos que controla el barbero, en el único orden posible. */
 const STEPS: { to: ServiceStatus; action: string; done: string; hint: string }[] = [
   {
     to: 'ON_THE_WAY',
@@ -23,6 +25,12 @@ const STEPS: { to: ServiceStatus; action: string; done: string; hint: string }[]
     hint: 'Tu ubicación deja de compartirse.',
   },
   {
+    to: 'IN_PROGRESS',
+    action: 'Iniciar servicio',
+    done: 'Servicio iniciado',
+    hint: 'El cliente verá que ya empezaste.',
+  },
+  {
     to: 'COMPLETED',
     action: 'Finalizar servicio',
     done: 'Servicio finalizado',
@@ -31,11 +39,11 @@ const STEPS: { to: ServiceStatus; action: string; done: string; hint: string }[]
 ];
 
 /**
- * Máquina de estados en la UI: solo el paso siguiente tiene botón activo.
- * Los anteriores quedan marcados como hechos y los posteriores bloqueados
- * con el motivo, así no hay forma de saltarse uno.
+ * Solo tiene botón activo el paso que el Core permite (`next`). Los
+ * anteriores quedan marcados como hechos y el resto bloqueados con el
+ * motivo, así no hay forma de saltarse uno.
  */
-export function StatusControls({ status, advancing, onAdvance }: StatusControlsProps) {
+export function StatusControls({ status, next, advancing, onAdvance }: StatusControlsProps) {
   const current = stepIndex(status);
 
   return (
@@ -43,7 +51,7 @@ export function StatusControls({ status, advancing, onAdvance }: StatusControlsP
       {STEPS.map((step, index) => {
         const target = stepIndex(step.to);
         const done = target <= current;
-        const isNext = target === current + 1;
+        const isNext = step.to === next;
 
         if (done) {
           return (

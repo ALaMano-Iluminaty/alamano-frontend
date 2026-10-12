@@ -1,7 +1,8 @@
 import { apiClient } from '@/lib/api-client';
 import type { GeoPoint } from '@/lib/geo';
 import { USE_MOCKS } from '@/lib/mock';
-import { mockCreatePromo, mockMyPromos } from './mocks';
+import { toServiceDetail, type CoreServiceDto, type ServiceDetail } from '@/lib/service';
+import { mockCreatePromo, mockIncomingService, mockMyPromos } from './mocks';
 
 export interface MyPromo {
   promoId: string;
@@ -21,6 +22,16 @@ export interface NewPromo {
 
 /** Radio en el que los clientes ven al barbero, en metros. Solo visual. */
 export const COVERAGE_RADIUS_M = 3_000;
+
+/**
+ * Detalle del servicio que acaban de reservarle. El evento RESERVED no trae
+ * destino ni nombre del cliente: el destino sale de aquí.
+ */
+export async function fetchIncomingService(serviceId: string): Promise<ServiceDetail> {
+  if (USE_MOCKS) return mockIncomingService(serviceId);
+  const dto = await apiClient.get<CoreServiceDto>(`/services/${serviceId}`);
+  return toServiceDetail(dto);
+}
 
 /** Código del 409 cuando el barbero tiene un servicio en curso. */
 export const PROFESSIONAL_BUSY = 'professional_busy';

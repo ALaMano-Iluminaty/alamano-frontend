@@ -3,7 +3,7 @@ import { BarberPole, Button, ConnectionBanner } from '@/components';
 import { useRealtimeConnection } from '@/context';
 import { useCurrentPosition, type WatchStatus } from '@/lib/geo';
 import type { ServiceStatus } from '@/lib/realtime';
-import { SERVICE_STATUS_LABEL, sharesLocation } from '@/lib/service';
+import { sharesLocation, statusLabel } from '@/lib/service';
 import { formatRelative } from '@/utils';
 import { useLocationSharing } from '../hooks/useLocationSharing';
 import { useSellerService } from '../hooks/useSellerService';
@@ -30,7 +30,7 @@ function gpsMessage(status: ServiceStatus, gps: WatchStatus, lastSentAt: string 
 export function SellerServiceScreen({ serviceId }: SellerServiceScreenProps) {
   const navigate = useNavigate();
   const { isOnline, isRecovering } = useRealtimeConnection();
-  const { service, loading, error, reload, advance, advancing } = useSellerService(serviceId);
+  const { service, loading, error, reload, next, advance, advancing } = useSellerService(serviceId);
 
   const sharing = service ? sharesLocation(service.status) : false;
   const location = useLocationSharing(serviceId, sharing);
@@ -66,7 +66,7 @@ export function SellerServiceScreen({ serviceId }: SellerServiceScreenProps) {
       <aside className="service-panel">
         <header className="service-panel__head">
           <div>
-            <p className="service-panel__eyebrow">{SERVICE_STATUS_LABEL[service.status]}</p>
+            <p className="service-panel__eyebrow">{statusLabel(service.status)}</p>
             <h1 className="service-panel__name">{service.customer.name}</h1>
             {service.customer.address ? <p className="service-panel__address">{service.customer.address}</p> : null}
           </div>
@@ -87,7 +87,7 @@ export function SellerServiceScreen({ serviceId }: SellerServiceScreenProps) {
         {service.status === 'CANCELLED' ? (
           <p className="panel panel--error">El cliente canceló este servicio.</p>
         ) : (
-          <StatusControls status={service.status} advancing={advancing} onAdvance={() => void advance()} />
+          <StatusControls status={service.status} next={next} advancing={advancing} onAdvance={() => void advance()} />
         )}
 
         {ended ? (

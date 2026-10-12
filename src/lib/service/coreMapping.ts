@@ -21,6 +21,8 @@ export interface CoreServiceDto {
   lastLongitude?: number | null;
   etaSeconds?: number | null;
   professional?: { id: string; status?: string | null };
+  /** Estados a los que el Core deja pasar desde el actual. */
+  allowedTransitions?: (CoreServiceStatus | string)[];
 }
 
 export function toFrontStatus(status: string): ServiceStatus {
@@ -30,13 +32,15 @@ export function toFrontStatus(status: string): ServiceStatus {
     case 'EN_ROUTE':
       return 'ON_THE_WAY';
     case 'ARRIVED':
-    case 'IN_PROGRESS':
       return 'ARRIVED';
+    case 'IN_PROGRESS':
+      return 'IN_PROGRESS';
     case 'COMPLETED':
       return 'COMPLETED';
     case 'CANCELLED':
       return 'CANCELLED';
     default:
+      // Estado que el front aún no conoce: se deja pasar tal cual.
       return status as ServiceStatus;
   }
 }
@@ -49,6 +53,8 @@ export function toCoreStatus(status: ServiceStatus): CoreServiceStatus {
       return 'EN_ROUTE';
     case 'ARRIVED':
       return 'ARRIVED';
+    case 'IN_PROGRESS':
+      return 'IN_PROGRESS';
     case 'COMPLETED':
       return 'COMPLETED';
     case 'CANCELLED':
@@ -77,6 +83,7 @@ export function toServiceDetail(dto: CoreServiceDto): ServiceDetail {
         ? { lat: dto.lastLatitude, lng: dto.lastLongitude }
         : null,
     etaSeconds: dto.etaSeconds ?? undefined,
+    ...(dto.allowedTransitions ? { allowedTransitions: dto.allowedTransitions.map(toFrontStatus) } : {}),
     updatedAt: dto.updatedAt,
   };
 }

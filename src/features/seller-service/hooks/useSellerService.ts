@@ -2,14 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRealtimeConnection, useToast } from '@/context';
 import { ApiError } from '@/lib/api-client';
 import { RealtimeEvent, useRealtime, useServiceChannel } from '@/lib/realtime';
-import { SERVICE_STATUS_LABEL, nextStatus, type ServiceDetail } from '@/lib/service';
+import { forwardStatus, statusLabel, type ServiceDetail } from '@/lib/service';
 import { advanceStatus, fetchService } from '../services';
 
 /**
  * 3.2 — Servicio activo del barbero y su máquina de estados.
  *
- * El avance es estrictamente secuencial: solo existe `next` (el siguiente
- * estado válido) y mientras una transición está en vuelo no se puede pedir
+ * El avance es estrictamente secuencial: solo existe `next` (el paso que el
+ * Core permite) y mientras una transición está en vuelo no se puede pedir
  * otra. Si el servidor responde 409, el estado local estaba viejo: se avisa
  * y se vuelve a pedir el snapshot.
  */
@@ -47,13 +47,24 @@ export function useSellerService(serviceId: string) {
   // El cliente puede cancelar, o el estado puede cambiar desde otro dispositivo.
   useRealtime(RealtimeEvent.ServiceStatusChanged, (payload) => {
     if (payload.serviceId !== serviceId) return;
-    setService((current) => (current ? { ...current, status: payload.status } : current));
+    // El eco de nuestro propio PATCH: el estado ya está aplicado. (Las versiones
+    // viejas o repetidas ni llegan aquí: las filtra el socket.)
+    if (payload.status === service?.status) return;
+    // Las transiciones permitidas cambiaron con el estado: sin botones hasta tener las nuevas.
+    setService((current) => (current ? { ...current, status: payload.status, allowedTransitions: [] } : current));
+    fetchService(serviceId)
+      .then(setService)
+      .catch(() => {
+        // Sin respuesta del Core no se deja al barbero sin botones: se usa el flujo
+        // local y el Core sigue validando (un 409 recarga el estado real).
+        setService((current) => (current ? { ...current, allowedTransitions: undefined } : current));
+      });
     if (payload.status === 'CANCELLED') {
       show({ tone: 'conflict', title: 'El cliente canceló el servicio', body: 'Ya puedes volver a tu panel.' });
     }
   });
 
-  const next = service ? nextStatus(service.status) : null;
+  const next = service ? forwardStatus(service.status, service.allowedTransitions) : null;
 
   const advance = useCallback(async () => {
     if (!service || !next || advancing) return;
@@ -72,7 +83,7 @@ export function useSellerService(serviceId: string) {
       } else {
         show({
           tone: 'conflict',
-          title: `No se pudo marcar «${SERVICE_STATUS_LABEL[next]}»`,
+          title: `No se pudo marcar «${statusLabel(next)}»`,
           body: caught instanceof Error ? caught.message : 'Inténtalo de nuevo.',
         });
       }

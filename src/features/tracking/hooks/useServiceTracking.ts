@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRealtimeConnection } from '@/context';
 import { estimateEtaSeconds } from '@/lib/geo';
 import { RealtimeEvent, useRealtime, useServiceChannel } from '@/lib/realtime';
-import type { ServiceDetail } from '@/lib/service';
+import { forgetActiveService, isFinished, type ServiceDetail } from '@/lib/service';
 import { fetchService } from '../services';
 
 /**
@@ -34,6 +34,12 @@ export function useServiceTracking(serviceId: string) {
     setLoading(true);
     void load();
   }, [load]);
+
+  // Terminado o cancelado: ya no hay servicio en curso que recuperar al volver.
+  const finished = service ? isFinished(service.status) : false;
+  useEffect(() => {
+    if (finished) forgetActiveService(serviceId);
+  }, [finished, serviceId]);
 
   const wasOnline = useRef(isOnline);
   useEffect(() => {
