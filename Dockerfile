@@ -14,6 +14,7 @@ COPY . .
 # Las URLs no se fijan aquí: el código usa /api, /auth y /ws (rutas relativas), que es
 # lo que nginx y Caddy esperan. Con http://localhost:XXXX se rompería en la VM.
 ENV VITE_USE_MOCKS=false
+ENV VITE_ACTIVE_SERVICES_PATH=/services/active
 RUN npm run build
 
 FROM nginx:1.27-alpine
