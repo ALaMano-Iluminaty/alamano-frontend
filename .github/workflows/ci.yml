@@ -79,6 +79,11 @@ jobs:
         with:
           context: .
           push: true
+          # HU-G2: el Client ID de Google se pasa como build-arg para que Vite
+          # lo incruste en el bundle. Se guarda en Repository Variables (no
+          # Secrets): es publico y tiene que ser legible al pie del codigo.
+          build-args: |
+            VITE_GOOGLE_CLIENT_ID=${{ vars.VITE_GOOGLE_CLIENT_ID }}
           tags: |
             ${{ env.IMAGE }}:latest
             ${{ env.IMAGE }}:${{ github.sha }}
