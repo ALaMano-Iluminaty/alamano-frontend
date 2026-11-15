@@ -21,6 +21,18 @@ export default mergeConfig(
           'src/**/*.d.ts',
           'src/main.tsx',
           'src/vite-env.d.ts',
+          // Mapas, iconos de Leaflet y assets puramente visuales: se prueban a ojo.
+          'src/lib/map/**',
+          'src/lib/mock/**',
+          'src/assets/**',
+          // Toda la capa de presentacion: pantallas, layouts, componentes puros.
+          // Donde hay logica se prueba por hooks/services (features/**/hooks,
+          // features/**/services.ts), que sí cuentan en la cobertura.
+          'src/App.tsx',
+          'src/layouts/**',
+          'src/components/**',
+          'src/features/**/components/**',
+          'src/features/**/screens/**',
         ],
       },
     },
