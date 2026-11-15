@@ -8,12 +8,17 @@ on:
 
 jobs:
   build:
-    name: Lint, tipos y build
+    name: Lint, tipos, build y SonarCloud
     runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # SonarCloud necesita el historial para distinguir el codigo nuevo del viejo.
+          fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
@@ -27,13 +32,25 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Tests
-        run: npm test
+      # HU-Q5: Vitest con el proveedor v8 deja coverage/lcov.info, que es lo que lee
+      # SonarCloud para el 40 % de cobertura del quality gate.
+      - name: Tests con cobertura
+        run: npm run test:coverage
 
       # Sin variables VITE_*: el código usa /api, /auth y /ws (rutas relativas),
       # que son las que sirve nginx en la VM.
       - name: Build
         run: npm run build
+
+      # HU-Q5: espera el Quality Gate y falla si no pasa (cobertura < 40 %, bugs o
+      # vulnerabilidades nuevas), asi que con la rama protegida el PR no se puede integrar.
+      - name: SonarCloud
+        if: ${{ env.SONAR_TOKEN != '' }}
+        uses: SonarSource/sonarqube-scan-action@2f77a1ec69fb1d595b06f35ab27e97605bdef703 # v5
+        with:
+          args: -Dsonar.qualitygate.wait=true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   image:
     name: Publicar imagen
@@ -44,7 +61,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       # GHCR solo acepta nombres en minuscula y la organizacion tiene mayusculas.
       - name: Nombre de la imagen en minuscula
@@ -52,13 +69,13 @@ jobs:
         env:
           REPO: ${{ github.repository }}
 
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           push: true
