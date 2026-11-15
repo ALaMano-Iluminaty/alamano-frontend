@@ -8,10 +8,15 @@ on:
 
 jobs:
   build:
-    name: Lint, tipos y build
+    name: Lint, tipos, build y SonarCloud
     runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # SonarCloud necesita el historial para distinguir el codigo nuevo del viejo.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -27,13 +32,25 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Tests
-        run: npm test
+      # HU-Q5: Vitest con el proveedor v8 deja coverage/lcov.info, que es lo que lee
+      # SonarCloud para el 40 % de cobertura del quality gate.
+      - name: Tests con cobertura
+        run: npm run test:coverage
 
       # Sin variables VITE_*: el código usa /api, /auth y /ws (rutas relativas),
       # que son las que sirve nginx en la VM.
       - name: Build
         run: npm run build
+
+      # HU-Q5: espera el Quality Gate y falla si no pasa (cobertura < 40 %, bugs o
+      # vulnerabilidades nuevas), asi que con la rama protegida el PR no se puede integrar.
+      - name: SonarCloud
+        if: ${{ env.SONAR_TOKEN != '' }}
+        uses: SonarSource/sonarqube-scan-action@v5
+        with:
+          args: -Dsonar.qualitygate.wait=true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   image:
     name: Publicar imagen

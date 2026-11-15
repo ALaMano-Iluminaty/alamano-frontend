@@ -13,6 +13,11 @@ export interface RegisterPayload extends LoginPayload {
   role: UserRole;
 }
 
+/** Credencial que devuelve Google Identity Services al elegir una cuenta (HU-G2). */
+export interface GoogleLoginPayload {
+  idToken: string;
+}
+
 /** Lo que devuelve el gateway en /auth/login y /auth/register. */
 interface AuthResponse {
   accessToken: string;
@@ -73,6 +78,24 @@ export async function login(payload: LoginPayload): Promise<Session> {
   const response = await apiClient.post<LoginResponseDto>(
     '/login',
     { correo: payload.email, password: payload.password },
+    { auth: false, baseUrl: AUTH_BASE_URL },
+  );
+  return fromAuthService(response);
+}
+
+/**
+ * HU-G2: cambia un id_token de Google por el JWT propio del Auth Service.
+ * El backend valida la firma contra las JWKS de Google, el emisor, la audiencia
+ * (nuestro Client ID) y la expiracion antes de emitir su propio JWT (<= 30 min).
+ * En modo demo reutilizamos el mockLogin para que la UI pueda probarse sin red.
+ */
+export async function loginWithGoogle(payload: GoogleLoginPayload): Promise<Session> {
+  if (USE_MOCKS) {
+    return mockLogin({ email: 'google@demo.com', password: 'demo' });
+  }
+  const response = await apiClient.post<LoginResponseDto>(
+    '/google',
+    { idToken: payload.idToken },
     { auth: false, baseUrl: AUTH_BASE_URL },
   );
   return fromAuthService(response);

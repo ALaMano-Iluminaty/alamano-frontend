@@ -1,11 +1,14 @@
-import { useState, type FormEvent } from 'react';
+import { useCallback, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Input } from '@/components';
 import { USE_MOCKS } from '@/lib/mock';
 import { useLogin } from '../hooks/useLogin';
+import { useGoogleLogin } from '../hooks/useGoogleLogin';
 import { useAuthBusy } from '../hooks/useAuthBusy';
 import { validateEmail, validateExistingPassword } from '../validation';
 import { AuthTabs } from './AuthTabs';
+import { GoogleDivider } from './GoogleDivider';
+import { GoogleSignInButton } from './GoogleSignInButton';
 import { PasswordField } from './PasswordField';
 import '../auth.css';
 
@@ -13,7 +16,21 @@ type Field = 'email' | 'password';
 
 export function LoginScreen() {
   const { submit, loading, error } = useLogin();
-  useAuthBusy(loading);
+  const {
+    submit: submitGoogle,
+    loading: googleLoading,
+    error: googleError,
+  } = useGoogleLogin();
+  useAuthBusy(loading || googleLoading);
+
+  // La referencia se mantiene estable entre renders para que el GoogleSignInButton
+  // no reinicialice el SDK cada vez que cambia el estado del formulario.
+  const onGoogleCredential = useCallback(
+    (idToken: string) => {
+      void submitGoogle({ idToken });
+    },
+    [submitGoogle],
+  );
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -55,15 +72,22 @@ export function LoginScreen() {
         error={visibleError('password')}
       />
 
-      {error ? (
+      {error || googleError ? (
         <p className="auth-form__error" role="alert">
-          {error}
+          {error ?? googleError}
         </p>
       ) : null}
 
       <Button type="submit" loading={loading} className="auth-form__submit">
         {loading ? 'Entrando…' : 'Entrar'}
       </Button>
+
+      <GoogleDivider />
+      <GoogleSignInButton
+        onCredential={onGoogleCredential}
+        disabled={loading || googleLoading}
+        text="signin_with"
+      />
 
       <p className="auth-form__switch">
         ¿Primera vez? <Link to="/register">Crea tu cuenta</Link>
