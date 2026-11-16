@@ -38,9 +38,11 @@ interface LoginResponseDto {
   usuario: AuthUserDto;
 }
 
-const AUTH_ROLES: Record<UserRole, string> = {
+/** Nombre de cada rol en el Auth Service. */
+export const AUTH_ROLES: Record<UserRole, string> = {
   CUSTOMER: 'USUARIO',
   SELLER: 'VENDEDOR',
+  ADMIN: 'ADMIN',
 };
 
 const AUTH_BASE_URL = import.meta.env.VITE_AUTH_URL ?? '/auth';
@@ -60,11 +62,12 @@ function fromAuthService({ token, usuario }: LoginResponseDto): Session {
 const BACKEND_ROLES: Record<string, UserRole> = {
   USUARIO: 'CUSTOMER',
   VENDEDOR: 'SELLER',
+  ADMIN: 'ADMIN',
   CLIENT: 'CUSTOMER',
   PROFESSIONAL: 'SELLER',
 };
 
-function normalizeRole(role: string): UserRole {
+export function normalizeRole(role: string): UserRole {
   return BACKEND_ROLES[role] ?? (role as UserRole);
 }
 
@@ -158,15 +161,16 @@ async function mockLogin({ email, password }: LoginPayload): Promise<Session> {
     );
   }
 
-  // Sin registro previo: el correo decide el rol, para poder probar las dos vistas.
-  const isSeller = email.toLowerCase().startsWith('barbero');
+  // Sin registro previo: el correo decide el rol, para poder probar las tres vistas.
+  const normalized = email.toLowerCase();
+  const role: UserRole = normalized.startsWith('admin')
+    ? 'ADMIN'
+    : normalized.startsWith('barbero')
+      ? 'SELLER'
+      : 'CUSTOMER';
+  const ids: Record<UserRole, string> = { ADMIN: 'admin-demo', SELLER: 'vendor-demo', CUSTOMER: 'user-demo' };
   return toSession(
-    mockTokens({
-      id: isSeller ? 'vendor-demo' : 'user-demo',
-      name: email.split('@')[0],
-      email: email.toLowerCase(),
-      role: isSeller ? 'SELLER' : 'CUSTOMER',
-    }),
+    mockTokens({ id: ids[role], name: email.split('@')[0], email: normalized, role }),
   );
 }
 

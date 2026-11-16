@@ -2,7 +2,7 @@ import { Link, Outlet } from 'react-router-dom';
 import { homePathFor, useRealtimeConnection, useSession } from '@/context';
 import { BarberPole, Button } from '@/components';
 
-const ROLE_LABEL = { CUSTOMER: 'Cliente', SELLER: 'Barbero' } as const;
+const ROLE_LABEL = { CUSTOMER: 'Cliente', SELLER: 'Barbero', ADMIN: 'Administrador' } as const;
 
 export function AppLayout() {
   const { session, signOut } = useSession();
