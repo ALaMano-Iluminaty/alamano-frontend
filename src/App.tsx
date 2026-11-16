@@ -6,6 +6,7 @@ import { ClientMapScreen } from '@/features/client-map';
 import { SellerDashboardScreen } from '@/features/seller-dashboard';
 import { TrackingScreen } from '@/features/tracking';
 import { SellerServiceScreen } from '@/features/seller-service';
+import { AdminUsersScreen } from '@/features/admin-users';
 
 function TrackingRoute() {
   const { serviceId } = useParams<{ serviceId: string }>();
@@ -44,6 +45,12 @@ export function App() {
         <Route element={<AppLayout />}>
           <Route path="/seller/dashboard" element={<SellerDashboardScreen />} />
           <Route path="/seller/service/:serviceId" element={<SellerServiceRoute />} />
+        </Route>
+      </Route>
+
+      <Route element={<RequireAuth role="ADMIN" />}>
+        <Route element={<AppLayout />}>
+          <Route path="/admin/users" element={<AdminUsersScreen />} />
         </Route>
       </Route>
 

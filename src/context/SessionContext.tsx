@@ -11,7 +11,7 @@ import {
 import { apiClient, configureApiClient } from '@/lib/api-client';
 import { readStorage, removeStorage, tokenSubject, writeStorage } from '@/utils';
 
-export type UserRole = 'CUSTOMER' | 'SELLER';
+export type UserRole = 'CUSTOMER' | 'SELLER' | 'ADMIN';
 
 export interface SessionUser {
   id: string;
@@ -54,9 +54,15 @@ export function sessionSubject(session: Session): string {
   return tokenSubject(session.token) ?? session.user.id;
 }
 
+const HOME_PATHS: Record<UserRole, string> = {
+  CUSTOMER: '/map',
+  SELLER: '/seller/dashboard',
+  ADMIN: '/admin/users',
+};
+
 /** A dónde va cada rol tras entrar. */
 export function homePathFor(role: UserRole): string {
-  return role === 'SELLER' ? '/seller/dashboard' : '/map';
+  return HOME_PATHS[role];
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null);
