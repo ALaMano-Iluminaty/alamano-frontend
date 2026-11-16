@@ -1,30 +1,31 @@
-import { useCallback, useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
-import { Button, Input } from '@/components';
+import { useCallback } from 'react';
+import { Button } from '@/components';
+import type { UserRole } from '@/context';
 import { USE_MOCKS } from '@/lib/mock';
-import { useLogin } from '../hooks/useLogin';
 import { useGoogleLogin } from '../hooks/useGoogleLogin';
 import { useAuthBusy } from '../hooks/useAuthBusy';
-import { validateEmail, validateExistingPassword } from '../validation';
-import { AuthTabs } from './AuthTabs';
-import { GoogleDivider } from './GoogleDivider';
+import { useAuthSubmit } from '../hooks/useAuthSubmit';
+import { demoLogin } from '../services';
 import { GoogleSignInButton } from './GoogleSignInButton';
-import { PasswordField } from './PasswordField';
 import '../auth.css';
 
-type Field = 'email' | 'password';
+const DEMO_ROLES: { role: UserRole; label: string }[] = [
+  { role: 'CUSTOMER', label: 'Cliente' },
+  { role: 'SELLER', label: 'Barbero' },
+  { role: 'ADMIN', label: 'Administrador' },
+];
 
+/**
+ * HU-Q2: la unica forma de entrar es con la cuenta de Google. No hay correo y
+ * contrasena propios: la identidad la verifica un proveedor externo.
+ */
 export function LoginScreen() {
-  const { submit, loading, error } = useLogin();
-  const {
-    submit: submitGoogle,
-    loading: googleLoading,
-    error: googleError,
-  } = useGoogleLogin();
-  useAuthBusy(loading || googleLoading);
+  const { submit: submitGoogle, loading, error } = useGoogleLogin();
+  const { submit: submitDemo, loading: demoLoading, error: demoError } = useAuthSubmit<UserRole>(demoLogin);
+  useAuthBusy(loading || demoLoading);
 
   // La referencia se mantiene estable entre renders para que el GoogleSignInButton
-  // no reinicialice el SDK cada vez que cambia el estado del formulario.
+  // no reinicialice el SDK cada vez que cambia el estado de la pantalla.
   const onGoogleCredential = useCallback(
     (idToken: string) => {
       void submitGoogle({ idToken });
@@ -32,73 +33,39 @@ export function LoginScreen() {
     [submitGoogle],
   );
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  // Los errores aparecen al salir del campo o al enviar, no mientras se escribe.
-  const [touched, setTouched] = useState<Record<Field, boolean>>({ email: false, password: false });
-
-  const errors = { email: validateEmail(email), password: validateExistingPassword(password) };
-  const visibleError = (field: Field) => (touched[field] ? errors[field] : null);
-  const touch = (field: Field) => setTouched((current) => ({ ...current, [field]: true }));
-
-  const onSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    setTouched({ email: true, password: true });
-    if (errors.email || errors.password) return;
-    void submit({ email: email.trim(), password });
-  };
+  const failure = error ?? demoError;
 
   return (
-    <form className="auth-form" onSubmit={onSubmit} noValidate>
-      <AuthTabs />
+    <section className="auth-form">
       <h2 className="auth-form__title">Entra a tu cuenta</h2>
+      <p className="auth-form__lead">Usa tu cuenta de Google. No guardamos contraseñas.</p>
 
-      <Input
-        label="Correo"
-        type="email"
-        inputMode="email"
-        autoComplete="email"
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-        onBlur={() => touch('email')}
-        error={visibleError('email') ?? undefined}
-      />
-      <PasswordField
-        label="Contraseña"
-        autoComplete="current-password"
-        value={password}
-        onChange={(event) => setPassword(event.target.value)}
-        onBlur={() => touch('password')}
-        error={visibleError('password')}
-      />
-
-      {error || googleError ? (
+      {failure ? (
         <p className="auth-form__error" role="alert">
-          {error ?? googleError}
+          {failure}
         </p>
       ) : null}
 
-      <Button type="submit" loading={loading} className="auth-form__submit">
-        {loading ? 'Entrando…' : 'Entrar'}
-      </Button>
-
-      <GoogleDivider />
-      <GoogleSignInButton
-        onCredential={onGoogleCredential}
-        disabled={loading || googleLoading}
-        text="signin_with"
-      />
-
-      <p className="auth-form__switch">
-        ¿Primera vez? <Link to="/register">Crea tu cuenta</Link>
-      </p>
+      <GoogleSignInButton onCredential={onGoogleCredential} disabled={loading || demoLoading} text="signin_with" />
 
       {USE_MOCKS ? (
-        <p className="auth-form__demo">
-          Modo demo: cualquier correo entra como cliente; uno que empiece por <code>barbero</code> entra
-          como barbero.
-        </p>
+        <div className="auth-form__demo">
+          <p>Modo demo: entra sin Google con el rol que quieras probar.</p>
+          <div className="auth-form__demo-actions">
+            {DEMO_ROLES.map(({ role, label }) => (
+              <Button
+                key={role}
+                type="button"
+                variant="secondary"
+                disabled={loading || demoLoading}
+                onClick={() => void submitDemo(role)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+        </div>
       ) : null}
-    </form>
+    </section>
   );
 }
