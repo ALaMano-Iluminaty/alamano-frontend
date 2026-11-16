@@ -5,14 +5,14 @@ import { homePathFor, useSession } from '@/context';
 import './AuthLayout.css';
 
 /**
- * Login y registro. A la izquierda el rótulo de la barbería; entre los dos
+ * Acceso con Google. A la izquierda el rótulo de la barbería; entre los dos
  * paneles, el poste, que gira mientras se envía el formulario.
  */
 export function AuthLayout() {
   const { session } = useSession();
   const [busy, setBusy] = useState(false);
 
-  // Con sesión abierta, /login y /register no tienen sentido.
+  // Con sesión abierta, /login no tiene sentido.
   if (session) return <Navigate to={homePathFor(session.user.role)} replace />;
 
   return (

@@ -1,7 +1,7 @@
 import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { AppLayout, AuthLayout } from '@/layouts';
 import { homePathFor, useSession } from '@/context';
-import { LoginScreen, RegisterScreen, RequireAuth } from '@/features/auth';
+import { LoginScreen, RequireAuth } from '@/features/auth';
 import { ClientMapScreen } from '@/features/client-map';
 import { SellerDashboardScreen } from '@/features/seller-dashboard';
 import { TrackingScreen } from '@/features/tracking';
@@ -31,7 +31,6 @@ export function App() {
     <Routes>
       <Route element={<AuthLayout />}>
         <Route path="/login" element={<LoginScreen />} />
-        <Route path="/register" element={<RegisterScreen />} />
       </Route>
 
       <Route element={<RequireAuth role="CUSTOMER" />}>

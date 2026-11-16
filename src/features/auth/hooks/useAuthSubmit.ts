@@ -3,20 +3,26 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { homePathFor, useSession, type Session, type UserRole } from '@/context';
 import { authErrorMessage } from '../services';
 
+/** Pantallas que puede abrir cada rol. Sirve para no llevar a nadie a una ruta que no es suya. */
+const ROLE_AREAS: Record<UserRole, string[]> = {
+  CUSTOMER: ['/map', '/tracking'],
+  SELLER: ['/seller'],
+  ADMIN: ['/admin'],
+};
+
 /**
  * Destino tras entrar: la pantalla que el usuario intentaba abrir, si es de
- * su rol; si no, su inicio (mapa o panel).
+ * su rol; si no, su inicio (mapa, panel o administracion).
  */
-function destinationFor(role: UserRole, from: unknown): string {
-  if (typeof from === 'string') {
-    const isSellerPath = from.startsWith('/seller');
-    if (isSellerPath === (role === 'SELLER')) return from;
+export function destinationFor(role: UserRole, from: unknown): string {
+  if (typeof from === 'string' && ROLE_AREAS[role].some((area) => from.startsWith(area))) {
+    return from;
   }
   return homePathFor(role);
 }
 
-/** Envío compartido por login y registro: estado de carga, error y redirección por rol. */
-export function useAuthSubmit<P>(action: (payload: P) => Promise<Session>, mode: 'login' | 'register') {
+/** Envio del acceso: estado de carga, error y redireccion segun el rol. */
+export function useAuthSubmit<P>(action: (payload: P) => Promise<Session>) {
   const { signIn } = useSession();
   const navigate = useNavigate();
   const location = useLocation();
@@ -34,11 +40,11 @@ export function useAuthSubmit<P>(action: (payload: P) => Promise<Session>, mode:
         signIn(session);
         navigate(destinationFor(session.user.role, from), { replace: true });
       } catch (caught) {
-        setError(authErrorMessage(caught, mode));
+        setError(authErrorMessage(caught));
         setLoading(false);
       }
     },
-    [action, mode, signIn, navigate, from],
+    [action, signIn, navigate, from],
   );
 
   return { submit, loading, error };

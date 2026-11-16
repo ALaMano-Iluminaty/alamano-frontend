@@ -10,6 +10,8 @@ export default mergeConfig(
     test: {
       environment: 'jsdom',
       globals: true,
+      // Las pruebas no dependen del modo demo que cada quien tenga en su .env.local.
+      env: { VITE_USE_MOCKS: 'false' },
       coverage: {
         provider: 'v8',
         reporter: ['text', 'lcov'],
