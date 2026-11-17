@@ -35,7 +35,7 @@ export function Modal({ open, title, onClose, children, footer }: ModalProps) {
   if (!open) return null;
 
   return createPortal(
-    <div className="modal__backdrop" onClick={onClose}>
+    <div className="modal__backdrop" role="presentation" onClick={onClose}>
       <div
         ref={dialogRef}
         className="modal"
